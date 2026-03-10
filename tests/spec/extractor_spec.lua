@@ -1,0 +1,7 @@
+describe("extractor", function()
+  it("loads without error", function()
+    assert.has_no.errors(function()
+      require("sql-lens.analyzer.extractor")
+    end)
+  end)
+end)

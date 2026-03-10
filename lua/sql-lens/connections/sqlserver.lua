@@ -1,0 +1,108 @@
+local Base  = require("sql-lens.connections.base")
+local async = require("sql-lens.utils.async")
+
+local MSSQL = setmetatable({}, { __index = Base })
+MSSQL.__index = MSSQL
+
+function MSSQL.new(config)
+  local self = Base.new(config)
+  self.type = "sqlserver"
+  return setmetatable(self, MSSQL)
+end
+
+function MSSQL:_args()
+  local c = self.config
+  local args = { "sqlcmd" }
+
+  if c.host then
+    if c.port and not c.host:match("\\") then
+      vim.list_extend(args, { "-S", string.format("%s,%s", c.host, c.port) })
+    else
+      vim.list_extend(args, { "-S", c.host })
+    end
+  end
+
+  if c.user and c.user ~= "" then
+    vim.list_extend(args, { "-U", c.user, "-P", c.password or "" })
+  else
+    table.insert(args, "-E")
+  end
+
+  if c.dbname then
+    vim.list_extend(args, { "-d", c.dbname })
+  end
+
+  return args
+end
+
+function MSSQL:wrap_explain(sql)
+  -- Each SET SHOWPLAN must be alone in its batch (separated by GO)
+  -- Part 1: SHOWPLAN_ALL for estimated plan
+  -- Part 2: STATISTICS TIME/IO for actual execution
+  return table.concat({
+    "SET SHOWPLAN_ALL ON;",
+    "GO",
+    sql,
+    "GO",
+    "SET SHOWPLAN_ALL OFF;",
+    "GO",
+    "SET NOCOUNT ON;",
+    "SET STATISTICS TIME ON;",
+    "SET STATISTICS IO ON;",
+    "GO",
+    sql,
+    "GO",
+    "SET STATISTICS TIME OFF;",
+    "SET STATISTICS IO OFF;",
+  }, "\n")
+end
+
+function MSSQL:explain(sql, cb)
+  local args = self:_args()
+  -- Use pipe separator and compact output for easier parsing
+  vim.list_extend(args, { "-h", "-1", "-W", "-s", "\t" })
+
+  local tmpfile = vim.fn.tempname() .. ".sql"
+  vim.fn.writefile(vim.split(self:wrap_explain(sql), "\n"), tmpfile)
+  vim.list_extend(args, { "-i", tmpfile })
+
+  async.job(args, function(code, stdout, stderr)
+    vim.fn.delete(tmpfile)
+    if code ~= 0 then return cb(stderr, nil) end
+    cb(nil, { raw = stdout, type = "showplan_stats" })
+  end)
+end
+
+---Execute SQL and return raw result
+function MSSQL:execute(sql, cb)
+  local args = self:_args()
+  -- -W trims trailing spaces, -s tab separator for clean columns
+  vim.list_extend(args, { "-W", "-s", "\t" })
+
+  local tmpfile = vim.fn.tempname() .. ".sql"
+  local wrapped = table.concat({
+    "SET STATISTICS TIME ON;",
+    "SET STATISTICS IO ON;",
+    "GO",
+    sql,
+    "GO",
+    "SET STATISTICS TIME OFF;",
+    "SET STATISTICS IO OFF;",
+  }, "\n")
+  vim.fn.writefile(vim.split(wrapped, "\n"), tmpfile)
+  vim.list_extend(args, { "-i", tmpfile })
+
+  async.job(args, function(code, stdout, stderr)
+    vim.fn.delete(tmpfile)
+    if code ~= 0 then return cb(stderr or "sqlcmd error", nil) end
+    cb(nil, stdout)
+  end)
+end
+
+function MSSQL:ping(cb)
+  local args = self:_args()
+  vim.list_extend(args, { "-Q", "SELECT 1" })
+  async.job(args, function(code) cb(code == 0) end)
+end
+
+return MSSQL

@@ -1,0 +1,21 @@
+# Env & local config
+.env
+.env.*
+.sql-lens.lua
+
+# Logs
+*.log
+
+# Editor / OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Test artifacts / coverage
+luacov.*
+.coverage
+tests/output/

@@ -1,0 +1,7 @@
+describe("connection manager", function()
+  it("loads without error", function()
+    assert.has_no.errors(function()
+      require("sql-lens.connections")
+    end)
+  end)
+end)

@@ -1,0 +1,112 @@
+*sql-lens.txt*  Real-time SQL query plan analyzer
+
+Author: Your Name
+License: MIT
+
+CONTENTS                                                    *sql-lens-contents*
+
+1. Introduction .............. |sql-lens-intro|
+2. Setup ..................... |sql-lens-setup|
+3. Commands .................. |sql-lens-commands|
+4. Configuration ............. |sql-lens-config|
+5. Connections ............... |sql-lens-connections|
+
+==============================================================================
+INTRODUCTION                                                  *sql-lens-intro*
+
+sql-lens.nvim shows PostgreSQL/MySQL/SQLServer/SQLite query execution plans
+inline in your buffer as you type SQL.
+
+Features:
+- Real-time EXPLAIN as you type (debounced)
+- PostgreSQL, MySQL, SQL Server, SQLite support
+- Smart hints: missing indexes, high cost, row estimate drift
+- Inline virtual text + floating detail window
+- .env credential loading
+
+==============================================================================
+SETUP                                                         *sql-lens-setup*
+
+Install with your package manager, then call setup(): >lua
+
+  require("sql-lens").setup({
+    connections = {
+      { name = "local", type = "postgres",
+        host = "localhost", dbname = "mydb",
+        user = "postgres", password = "secret" },
+    }
+  })
+<
+
+Requirements:
+- Neovim >= 0.9
+- `psql` / `mysql` / `sqlcmd` / `sqlite3` CLI in PATH
+- nvim-treesitter with SQL parser (optional, improves detection)
+
+==============================================================================
+COMMANDS                                                   *sql-lens-commands*
+
+:SqlLensConnect                                            *:SqlLensConnect*
+    Open connection picker.
+
+:SqlLensDisconnect                                      *:SqlLensDisconnect*
+    Disconnect current buffer's connection.
+
+:SqlLensToggle                                              *:SqlLensToggle*
+    Enable/disable inline analysis.
+
+:SqlLensExplain                                            *:SqlLensExplain*
+    Manually trigger explain on current statement.
+
+:SqlLensFloatDetail                                    *:SqlLensFloatDetail*
+    Show full plan in floating window.
+
+:SqlLensUse {name}                                            *:SqlLensUse*
+    Set active connection by name.
+
+==============================================================================
+CONFIGURATION                                               *sql-lens-config*
+
+Default configuration: >lua
+
+  {
+    trigger = {
+      on_write    = true,
+      on_change   = true,
+      debounce_ms = 500,
+      min_length  = 10,
+    },
+    display = {
+      mode          = "virtual",  -- "virtual" | "float" | "sidebar"
+      virtual_prefix = "󰋼 ",
+      show_cost     = true,
+      show_rows     = true,
+      show_warnings = true,
+    },
+    thresholds = {
+      cost_warn     = 1000,
+      cost_error    = 10000,
+      seq_scan_warn = true,
+    },
+    keymaps = {
+      toggle      = "<leader>sq",
+      explain     = "<leader>se",
+      show_detail = "<leader>sd",
+      connect     = "<leader>sc",
+    },
+  }
+<
+
+==============================================================================
+CONNECTIONS                                            *sql-lens-connections*
+
+Connections can be configured in setup(), .env files, or project-local
+.sql-lens.lua files. See CONNECTION_GUIDE.md for full documentation.
+
+Supported databases:
+- PostgreSQL (psql)
+- MySQL / MariaDB (mysql)
+- SQL Server (sqlcmd)
+- SQLite (sqlite3)
+
+ vim:tw=78:ts=8:ft=help:norl:
