@@ -32,6 +32,12 @@ function MSSQL:_args()
     vim.list_extend(args, { "-d", c.dbname })
   end
 
+  if type(c.sqlcmd_args) == "table" then
+    vim.list_extend(args, c.sqlcmd_args)
+  elseif type(c.sqlcmd_args) == "string" and c.sqlcmd_args ~= "" then
+    table.insert(args, c.sqlcmd_args)
+  end
+
   return args
 end
 

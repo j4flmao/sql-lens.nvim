@@ -72,6 +72,8 @@ require("sql-lens").setup({
       dbname   = "MyApp",
       user     = "sa",
       password = "${MSSQL_PASS}",  -- đọc từ env var
+      -- Trên Linux/macOS nếu cần trust server certificate:
+      -- sqlcmd_args = { "-C" },
     },
   },
 })
