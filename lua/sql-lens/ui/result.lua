@@ -269,11 +269,25 @@ function M.show_error(err, sql)
     "",
     "  ╔══ SqlLens Error ══╗",
     "",
-    "  SQL: " .. sql:gsub("\n", " "):sub(1, 80),
-    "",
-    "  ❌ " .. tostring(err),
-    "",
   }
+
+  local sql_display = (sql or ""):gsub("\n", " "):gsub("%s+", " ")
+  if #sql_display > 80 then
+    sql_display = sql_display:sub(1, 77) .. "..."
+  end
+  table.insert(lines, "  SQL: " .. sql_display)
+  table.insert(lines, "")
+
+  local err_str = tostring(err or "Unknown error"):gsub("\r", "")
+  local added = false
+  for line in err_str:gmatch("[^\n]+") do
+    table.insert(lines, "  ❌ " .. line)
+    added = true
+  end
+  if not added then
+    table.insert(lines, "  ❌ (no details)")
+  end
+  table.insert(lines, "")
 
   if result_buf and vim.api.nvim_buf_is_valid(result_buf) then
     -- reuse
@@ -298,8 +312,14 @@ function M.show_error(err, sql)
 
   local ns = vim.api.nvim_create_namespace("sql_lens_result")
   vim.api.nvim_buf_clear_namespace(result_buf, ns, 0, -1)
-  vim.api.nvim_buf_add_highlight(result_buf, ns, "SqlLensError", 1, 0, -1)
-  vim.api.nvim_buf_add_highlight(result_buf, ns, "SqlLensError", 5, 0, -1)
+  for i, line in ipairs(lines) do
+    local row = i - 1
+    if line:match("SqlLens Error") or line:match("❌") then
+      vim.api.nvim_buf_add_highlight(result_buf, ns, "SqlLensError", row, 0, -1)
+    elseif line:match("^%s*SQL:") then
+      vim.api.nvim_buf_add_highlight(result_buf, ns, "SqlLensDim", row, 0, -1)
+    end
+  end
 end
 
 function M.close()
