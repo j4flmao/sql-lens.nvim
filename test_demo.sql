@@ -3,11 +3,11 @@
 -- Database: SqlLensDemo (500 users, 10K orders, 30K items, 50K logs)
 --
 -- Keymaps:
---   <leader>sr  = Run query tai cursor (xem ket qua)
---   <leader>sR  = Run tat ca queries
---   <leader>se  = Explain (xem cost/plan inline)
---   <leader>sd  = Float detail (xem plan chi tiet)
---   <leader>sc  = Chon connection
+--   <leader>sr  = Run query at cursor (see result)
+--   <leader>sR  = Run all queries
+--   <leader>se  = Explain (see cost/plan inline)
+--   <leader>sd  = Floating detail (see full plan)
+--   <leader>sc  = Choose connection
 --   <leader>sq  = Toggle on/off
 -- ============================================================
 
@@ -123,13 +123,13 @@ INSERT INTO activity_logs (id, user_id, action, created_at) VALUES
 GO
 
 -- ===========================================
--- 1. BASIC: Scan toan bo bang lon (no filter)
+-- 1. BASIC: Scan entire large table (no filter)
 --    => Seq Scan, high reads
 -- ===========================================
 SELECT * FROM activity_logs;
 
 -- ===========================================
--- 2. FILTER: Tim theo cot KHONG co index
+-- 2. FILTER: Filter by a NON-indexed column
 --    => Clustered Index Scan (full scan)
 -- ===========================================
 SELECT * FROM activity_logs
@@ -137,7 +137,7 @@ WHERE action = 'login'
 AND created_at > '2026-01-01';
 
 -- ===========================================
--- 3. JOIN phuc tap: 3 bang
+-- 3. Complex JOIN: 3 tables
 --    => Nested Loops / Hash Match
 -- ===========================================
 SELECT
@@ -155,7 +155,7 @@ ORDER BY total_spent DESC;
 
 -- ===========================================
 -- 4. SUBQUERY + JOIN: Top users by revenue
---    => Cost cao vi scan nhieu bang
+--    => High cost because many tables are scanned
 -- ===========================================
 SELECT
     u.username,
@@ -193,8 +193,8 @@ INNER JOIN users u ON u.id = o.user_id
 WHERE o.status IN ('completed', 'shipped');
 
 -- ===========================================
--- 6. FULL SCAN trên activity_logs (50K rows)
---    => Rat cham, can index!
+-- 6. FULL SCAN on activity_logs (50K rows)
+--    => Very slow, consider adding an index!
 -- ===========================================
 SELECT
     user_id,
@@ -260,9 +260,9 @@ WHERE us.total_orders > 5
 ORDER BY us.total_revenue DESC;
 
 -- ============================================================
--- 9. TAO INDEX: Chay lai cac query tren de so sanh!
---    => Uncomment rồi <leader>sr de tao index
---    => Sau do <leader>se de xem cost giam
+-- 9. CREATE INDEX: rerun queries above to compare!
+--    => Uncomment and use <leader>sr to create indexes
+--    => Then <leader>se to see cost improvements
 -- ============================================================
 
 -- CREATE INDEX IX_activity_logs_action_date ON activity_logs(action, created_at) INCLUDE (user_id);
@@ -272,7 +272,7 @@ ORDER BY us.total_revenue DESC;
 -- CREATE INDEX IX_activity_logs_user ON activity_logs(user_id, action) INCLUDE (created_at);
 
 -- ============================================================
--- 10. DROP INDEX (de reset ve trang thai khong co index)
+-- 10. DROP INDEX (reset to no-index state)
 -- ============================================================
 
 -- DROP INDEX IX_activity_logs_action_date ON activity_logs;
@@ -282,7 +282,7 @@ ORDER BY us.total_revenue DESC;
 -- DROP INDEX IX_activity_logs_user ON activity_logs;
 
 -- ============================================================
--- 11. XEM DANH SACH INDEX HIEN TAI
+-- 11. VIEW CURRENT INDEXES
 -- ============================================================
 SELECT
     t.name AS table_name,
@@ -320,5 +320,4 @@ INNER JOIN sys.columns AS cref
     ON fkc.referenced_object_id = cref.object_id
    AND fkc.referenced_column_id = cref.column_id
 ORDER BY from_table, fk_name;
-
 

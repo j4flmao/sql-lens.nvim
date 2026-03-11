@@ -3,7 +3,7 @@
 ## Setup Test Environment
 
 ```bash
-# Dùng plenary.nvim để run tests
+# Use plenary.nvim to run tests
 cd sql-lens.nvim
 nvim --headless -c "PlenaryBustedDirectory tests/ {minimal_init = 'tests/minimal_init.lua'}"
 ```
@@ -92,12 +92,12 @@ end)
 
 ---
 
-## Mock DB cho Integration Tests
+## Mock DB for Integration Tests
 
 ### `tests/helpers/mock_db.lua`
 
 ```lua
--- Tạo mock connection trả về plan cố định để test UI
+-- Create a mock connection that returns a fixed plan to test the UI
 local M = {}
 
 function M.new_postgres_mock(plan_data)

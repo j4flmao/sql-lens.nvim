@@ -1,6 +1,6 @@
 # PUBLISH_GUIDE.md — sql-lens.nvim
 
-## Checklist Trước Khi Publish
+## Pre-publish Checklist
 
 - [ ] Plugin hoạt động với ít nhất 1 DB (PostgreSQL)
 - [ ] `doc/sql-lens.txt` viết xong (`:help sql-lens` hoạt động)
@@ -11,7 +11,7 @@
 
 ---
 
-## Cấu Trúc `doc/sql-lens.txt`
+## Structure of `doc/sql-lens.txt`
 
 ```
 *sql-lens.txt*  Real-time SQL query plan analyzer
@@ -92,10 +92,10 @@ Real-time SQL query plan analyzer — see EXPLAIN output inline as you type.
 
 ---
 
-## Đăng lên awesome-neovim
+## Submit to awesome-neovim
 
 1. Fork https://github.com/rockerBOO/awesome-neovim
-2. Thêm vào section "Database" hoặc "Code Analysis":
+2. Add your plugin under section "Database" or "Code Analysis":
 
 ```markdown
 - [yourname/sql-lens.nvim](https://github.com/yourname/sql-lens.nvim) -
@@ -119,13 +119,13 @@ git push origin v0.1.0
 
 ---
 
-## Roadmap Gợi Ý
+## Suggested Roadmap
 
 | Version | Features |
 |---------|----------|
 | v0.1.0  | PostgreSQL, virtual text |
 | v0.2.0  | MySQL, SQLite |
 | v0.3.0  | Floating detail window, SQL Server |
-| v0.4.0  | Telescope picker cho connections |
+| v0.4.0  | Telescope picker for connections |
 | v0.5.0  | AI-powered index suggestions |
 | v1.0.0  | Stable API, full test coverage |

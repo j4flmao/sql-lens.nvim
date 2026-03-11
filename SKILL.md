@@ -1,17 +1,17 @@
 # sql-lens.nvim — SKILL.md
-## Bộ Kit Xây Dựng Plugin Neovim: Real-time SQL Query Plan Analyzer
+## Neovim Plugin Builder Kit: Real-time SQL Query Plan Analyzer
 
-> Plugin hiển thị EXPLAIN ANALYZE inline trong buffer khi bạn gõ SQL,
-> hỗ trợ PostgreSQL, MySQL, SQLServer, SQLite, và nhiều hơn nữa.
+> Plugin that shows EXPLAIN/ANALYZE inline in your buffer while you type SQL,
+> supporting PostgreSQL, MySQL, SQL Server, SQLite, and more.
 
 ---
 
-## 📁 Cấu Trúc Thư Mục Chuẩn
+## 📁 Recommended Directory Layout
 
 ```
 sql-lens.nvim/
 ├── plugin/
-│   └── sql-lens.vim              ← Auto-load entry, khai báo commands
+│   └── sql-lens.vim              ← Auto-load entry, define commands
 ├── lua/
 │   └── sql-lens/
 │       ├── init.lua              ← setup(), public API
@@ -25,19 +25,19 @@ sql-lens.nvim/
 │       │   └── base.lua          ← Base adapter interface
 │       ├── analyzer/
 │       │   ├── init.lua          ← Query analysis orchestrator
-│       │   ├── extractor.lua     ← Extract SQL từ buffer (Treesitter)
+│       │   ├── extractor.lua     ← Extract SQL from buffer (Treesitter)
 │       │   ├── parser.lua        ← Parse EXPLAIN output → structured data
-│       │   └── hints.lua         ← Sinh performance hints từ plan
+│       │   └── hints.lua         ← Generate performance hints from plan
 │       ├── ui/
 │       │   ├── init.lua          ← UI manager
 │       │   ├── virtual_text.lua  ← Inline virtual text (extmarks)
-│       │   ├── float.lua         ← Floating window chi tiết
+│       │   ├── float.lua         ← Detailed floating window
 │       │   ├── sidebar.lua       ← Split panel view
 │       │   └── highlights.lua    ← Highlight groups
 │       └── utils/
-│           ├── debounce.lua      ← Debounce cho real-time trigger
+│           ├── debounce.lua      ← Debounce for real-time triggers
 │           ├── async.lua         ← Async job helpers (vim.loop)
-│           └── secrets.lua       ← Đọc .env / vault credentials
+│           └── secrets.lua       ← Read .env / vault credentials
 ├── queries/
 │   └── sql/                      ← Treesitter queries cho SQL
 │       ├── statements.scm        ← Match SELECT/INSERT/UPDATE
@@ -64,29 +64,29 @@ sql-lens.nvim/
 ## 🧠 Architecture Flow
 
 ```
-User gõ SQL trong buffer
+User types SQL in buffer
         │
         ▼
 [TextChangedI / BufWritePost]  ← autocmd trigger
         │
         ▼
-[debounce 500ms]               ← tránh spam queries
+[debounce 500ms]               ← avoid spamming queries
         │
         ▼
 [extractor.lua]
-  Dùng Treesitter parse buffer
-  Tìm SQL statement dưới cursor
+  Use Treesitter to parse buffer
+  Find SQL statement under cursor
         │
         ▼
 [connections/init.lua]
-  Lấy active connection cho buffer
-  (theo filetype hoặc manual set)
+  Get active connection for buffer
+  (by filetype or set manually)
         │
         ▼
-[adapter.explain(sql)]         ← async job, không block UI
+[adapter.explain(sql)]         ← async job, non-blocking
   PostgreSQL → EXPLAIN (ANALYZE, FORMAT JSON)
   MySQL      → EXPLAIN FORMAT=JSON
-  SQLServer  → SET STATISTICS ON + execution plan
+  SQL Server → SET SHOWPLAN / STATISTICS + execution plan
         │
         ▼
 [parser.lua]
@@ -94,15 +94,15 @@ User gõ SQL trong buffer
         │
         ▼
 [hints.lua]
-  Phân tích PlanNode:
-  - Seq Scan? → gợi ý index
-  - High cost? → cảnh báo
+  Analyze PlanNode:
+  - Seq Scan? → suggest index
+  - High cost? → warn
   - Nested loop? → suggest hash join
         │
         ▼
 [ui/virtual_text.lua]
-  Render inline bên cạnh câu lệnh
-  Dùng nvim_buf_set_extmark()
+  Render inline summary next to statement
+  Use nvim_buf_set_extmark()
 ```
 
 ---
@@ -134,15 +134,15 @@ augroup END
 local M = {}
 
 M.defaults = {
-  -- Khi nào trigger analyze
+  -- When to trigger analysis
   trigger = {
     on_write    = true,    -- BufWritePost
-    on_change   = true,    -- TextChanged (với debounce)
+    on_change   = true,    -- TextChanged (with debounce)
     debounce_ms = 500,     -- milliseconds
-    min_length  = 10,      -- bỏ qua query quá ngắn
+    min_length  = 10,      -- ignore very short queries
   },
 
-  -- Hiển thị
+  -- Display
   display = {
     mode          = "virtual",  -- "virtual" | "float" | "sidebar"
     virtual_prefix = "󰋼 ",
@@ -157,21 +157,21 @@ M.defaults = {
     },
   },
 
-  -- Ngưỡng cảnh báo
+  -- Thresholds
   thresholds = {
     cost_warn     = 1000,
     cost_error    = 10000,
     rows_warn     = 100000,
-    seq_scan_warn = true,   -- luôn cảnh báo Seq Scan trên table lớn
+    seq_scan_warn = true,   -- always warn on large Seq Scan
   },
 
   -- Connections
-  connections = {},  -- xem CONNECTION_GUIDE.md
+  connections = {},  -- see CONNECTION_GUIDE.md
 
-  -- Bảo mật
+  -- Secrets
   secrets = {
-    use_env    = true,   -- đọc từ .env tự động
-    use_dotenv = true,   -- tìm .env trong project root
+    use_env    = true,   -- read from environment variables
+    use_dotenv = true,   -- load .env from project root
   },
 
   -- Keymaps
@@ -200,7 +200,7 @@ return M
 
 ### `lua/sql-lens/connections/base.lua`
 ```lua
--- Interface mà mọi adapter phải implement
+-- Interface that every adapter must implement
 local Base = {}
 Base.__index = Base
 
@@ -208,13 +208,13 @@ function Base.new(config)
   return setmetatable({ config = config, connected = false }, Base)
 end
 
--- Mỗi adapter override các hàm này:
+-- Each adapter overrides these methods:
 function Base:connect()    error("Not implemented") end
 function Base:disconnect() error("Not implemented") end
 function Base:ping()       error("Not implemented") end
 
----@param sql string  Câu SQL cần explain
----@param cb  function  callback(err, plan_json_string)
+---@param sql string      SQL to explain
+---@param cb  function    callback(err, plan_json_string)
 function Base:explain(sql, cb)
   error("Not implemented")
 end
@@ -243,7 +243,7 @@ function PG.new(config)
   return setmetatable(self, PG)
 end
 
--- Tạo connection string psql
+-- Build psql connection string
 function PG:_connstr()
   local c = self.config
   return string.format(
@@ -253,9 +253,9 @@ function PG:_connstr()
   )
 end
 
--- Wrap SQL thành EXPLAIN ANALYZE JSON
+-- Wrap SQL into EXPLAIN ANALYZE JSON
 function PG:wrap_explain(sql)
-  -- Chỉ explain SELECT/UPDATE/DELETE/INSERT, không explain DDL
+  -- Only explain SELECT/UPDATE/DELETE/INSERT, skip DDL
   local upper = sql:upper():match("^%s*(%w+)")
   if not vim.tbl_contains({"SELECT","UPDATE","DELETE","INSERT","WITH"}, upper) then
     return nil, "Cannot EXPLAIN " .. (upper or "unknown") .. " statement"
