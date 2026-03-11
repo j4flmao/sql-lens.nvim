@@ -30,7 +30,11 @@ function M.job(cmd, cb, opts)
   }
 
   if opts and opts.env then
-    job_opts.env = opts.env
+    local merged = vim.fn.environ()
+    for k, v in pairs(opts.env) do
+      merged[k] = v
+    end
+    job_opts.env = merged
   end
 
   local job = vim.fn.jobstart(cmd, job_opts)
