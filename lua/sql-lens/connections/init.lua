@@ -10,7 +10,8 @@ local adapters = {
 }
 
 M._connections = {}
-M._active = {}  -- bufnr → connection instance
+M._active = {}      -- bufnr → connection instance
+M._disconnected = {} -- bufnr → true if explicitly disconnected
 
 function M.setup(conn_configs)
   M._connections = {}
@@ -30,11 +31,17 @@ function M.setup(conn_configs)
 end
 
 function M.get_active(bufnr)
+  if M._disconnected[bufnr] then return nil end
   return M._active[bufnr] or M._default
 end
 
 function M.set_active(bufnr, conn)
   M._active[bufnr] = conn
+  if conn == nil then
+    M._disconnected[bufnr] = true
+  else
+    M._disconnected[bufnr] = nil
+  end
 end
 
 function M.set_active_by_name(bufnr, name)
@@ -63,6 +70,7 @@ function M.pick_and_connect()
     if choice then
       local bufnr = vim.api.nvim_get_current_buf()
       M._active[bufnr] = choice
+      M._disconnected[bufnr] = nil
       vim.notify("SqlLens: Connected to '" .. choice.config.name .. "'", vim.log.levels.INFO)
     end
   end)
