@@ -115,6 +115,23 @@ require("sql-lens").setup({
 })
 ```
 
+**Laragon / XAMPP (no password):**
+
+```lua
+{
+  name     = "laragon-mysql",
+  type     = "mysql",
+  host     = "127.0.0.1",
+  port     = 3306,
+  user     = "root",
+  password = "",       -- empty password is supported
+  dbname   = "my_database",
+}
+```
+
+> **Windows note:** Make sure `mysql` is in your system PATH.
+> For Laragon, add `C:\laragon\bin\mysql\mysql-x.x.x-winx64\bin` to your PATH environment variable.
+
 ### SQLite
 
 ```lua
@@ -258,7 +275,7 @@ require("sql-lens").setup({
 | Database   | Required CLI | Install |
 |-----------|--------------|---------|
 | PostgreSQL | `psql` | `brew install postgresql` / `apt install postgresql-client` |
-| MySQL | `mysql` | `brew install mysql-client` / `apt install mysql-client` |
+| MySQL | `mysql` | `brew install mysql-client` / `apt install mysql-client` / Laragon (add to PATH) |
 | SQL Server | `sqlcmd` | [Microsoft ODBC Driver](https://learn.microsoft.com/en-us/sql/tools/sqlcmd/sqlcmd-utility) |
 | SQLite | `sqlite3` | usually available / `brew install sqlite` |
 

@@ -120,8 +120,54 @@ local function build_row(cols, widths, sep)
   return sep .. table.concat(parts, sep) .. sep
 end
 
+---Check if raw output is already a formatted table (mysql -t, psql, etc.)
+local function is_preformatted(raw)
+  return raw:match("^[%s]*[+|%-]") ~= nil
+end
+
+---Format pre-formatted output (mysql -t produces bordered tables)
+local function format_preformatted(raw, sql)
+  local output = {}
+
+  table.insert(output, "")
+  table.insert(output, "  ╔══ SqlLens Result ══╗")
+  table.insert(output, "")
+
+  local sql_display = sql:gsub("\n", " "):gsub("%s+", " ")
+  if #sql_display > 90 then
+    sql_display = sql_display:sub(1, 87) .. "..."
+  end
+  table.insert(output, "  SQL: " .. sql_display)
+  table.insert(output, "")
+
+  local row_count = 0
+  for line in raw:gmatch("[^\r\n]+") do
+    local rows_match = line:match("^(%d+) rows? in set")
+    local affected_match = line:match("^Query OK, (%d+) rows? affected")
+    if rows_match then
+      row_count = tonumber(rows_match)
+      table.insert(output, "")
+      table.insert(output, "  " .. line)
+    elseif affected_match then
+      table.insert(output, "")
+      table.insert(output, "  " .. line)
+    elseif line:match("^ERROR") then
+      table.insert(output, "  ❌ " .. line)
+    else
+      table.insert(output, "  " .. line)
+    end
+  end
+
+  table.insert(output, "")
+  return output
+end
+
 ---Format result as a nice bordered table
 local function format_result(raw, sql)
+  if is_preformatted(raw) then
+    return format_preformatted(raw, sql)
+  end
+
   local output = {}
   local sections = parse_output(raw)
 
