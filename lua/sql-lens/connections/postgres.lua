@@ -12,11 +12,15 @@ end
 
 function PG:_connstr()
   local c = self.config
-  return string.format(
+  local uri = string.format(
     "postgresql://%s:%s@%s:%s/%s",
     c.user, c.password, c.host or "localhost",
     c.port or 5432, c.dbname
   )
+  if c.sslmode then
+    uri = uri .. "?sslmode=" .. c.sslmode
+  end
+  return uri
 end
 
 function PG:wrap_explain(sql)
@@ -49,6 +53,18 @@ function PG:explain(sql, cb)
       return cb("Failed to parse JSON: " .. stdout, nil)
     end
     cb(nil, decoded)
+  end)
+end
+
+function PG:execute(sql, cb)
+  local cmd = {
+    "psql", self:_connstr(),
+    "--no-psqlrc",
+    "-c", sql
+  }
+  async.job(cmd, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "psql error", nil) end
+    cb(nil, stdout)
   end)
 end
 

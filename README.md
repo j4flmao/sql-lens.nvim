@@ -35,7 +35,7 @@ Real-time SQL query plan analyzer — see EXPLAIN output inline + execute querie
   },
   opts = {
     connections = {
-      -- Thêm connections của bạn ở đây (xem bên dưới)
+      -- Add your connections here (see below)
     },
   },
 }
@@ -51,9 +51,9 @@ require("sql-lens").setup({
     {
       name   = "local-sqlserver",
       type   = "sqlserver",
-      host   = [[(localdb)\MSSQLLocalDB]],  -- hoặc "localhost" / "server\instance"
+      host   = [[(localdb)\MSSQLLocalDB]],  -- or "localhost" / "server\instance"
       dbname = "MyDatabase",
-      -- Không cần user/password → tự dùng Windows Authentication
+      -- No user/password needed → uses Windows Authentication
     },
   },
 })
@@ -68,11 +68,11 @@ require("sql-lens").setup({
       name     = "dev-server",
       type     = "sqlserver",
       host     = "192.168.1.100",
-      port     = 1433,          -- mặc định 1433
+      port     = 1433,          -- default 1433
       dbname   = "MyApp",
       user     = "sa",
-      password = "${MSSQL_PASS}",  -- đọc từ env var
-      -- Trên Linux/macOS nếu cần trust server certificate:
+      password = "${MSSQL_PASS}",  -- read from env var
+      -- On Linux/macOS if you need to trust the server certificate:
       -- sqlcmd_args = { "-C" },
     },
   },
@@ -92,6 +92,7 @@ require("sql-lens").setup({
       user     = "postgres",
       password = "${PG_PASS}",
       dbname   = "mydb",
+      -- sslmode = "require",
     },
   },
 })

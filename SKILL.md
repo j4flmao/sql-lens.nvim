@@ -39,7 +39,7 @@ sql-lens.nvim/
 │           ├── async.lua         ← Async job helpers (vim.loop)
 │           └── secrets.lua       ← Read .env / vault credentials
 ├── queries/
-│   └── sql/                      ← Treesitter queries cho SQL
+│   └── sql/                      ← Treesitter queries for SQL
 │       ├── statements.scm        ← Match SELECT/INSERT/UPDATE
 │       └── highlights.scm
 ├── doc/
@@ -107,7 +107,7 @@ User types SQL in buffer
 
 ---
 
-## ⚡ Core Files — Code Mẫu
+## ⚡ Core Files — Code Examples
 
 ### `plugin/sql-lens.vim`
 ```vim
@@ -282,7 +282,7 @@ function PG:explain(sql, cb)
     if exit_code ~= 0 then
       return cb(stderr, nil)
     end
-    -- psql trả về JSON array trong stdout
+    -- psql returns a JSON array in stdout
     local ok, decoded = pcall(vim.json.decode, stdout)
     if not ok then
       return cb("Failed to parse JSON: " .. stdout, nil)
@@ -356,7 +356,7 @@ return MySQL
 local Base  = require("sql-lens.connections.base")
 local async = require("sql-lens.utils.async")
 
--- Dùng sqlcmd (Microsoft SQL Server CLI)
+-- Uses sqlcmd (Microsoft SQL Server CLI)
 local MSSQL = setmetatable({}, { __index = Base })
 MSSQL.__index = MSSQL
 
@@ -378,7 +378,7 @@ function MSSQL:_args()
   }
 end
 
--- SQL Server dùng SET STATISTICS + XML plan
+-- SQL Server uses SET STATISTICS + XML plan
 function MSSQL:wrap_explain(sql)
   return table.concat({
     "SET STATISTICS TIME ON;",
@@ -393,7 +393,7 @@ end
 
 function MSSQL:explain(sql, cb)
   local args = self:_args()
-  -- Viết query ra temp file (sqlcmd không nhận -Q với multi-line tốt)
+  -- Write query to temp file (sqlcmd doesn't handle -Q well with multi-line)
   local tmpfile = vim.fn.tempname() .. ".sql"
   vim.fn.writefile(vim.split(self:wrap_explain(sql), "\n"), tmpfile)
   vim.list_extend(args, { "-i", tmpfile })
@@ -435,7 +435,7 @@ function SQLite:explain(sql, cb)
     { "sqlite3", self.config.path, self:wrap_explain(sql) },
     function(code, stdout, stderr)
       if code ~= 0 then return cb(stderr, nil) end
-      -- SQLite output là plain text, parse thủ công
+      -- SQLite output is plain text, parse manually
       local rows = {}
       for line in stdout:gmatch("[^\n]+") do
         local id, parent, notused, detail = line:match("(%d+)|(%d+)|(%d+)|(.*)")
@@ -455,7 +455,7 @@ return SQLite
 
 ### `lua/sql-lens/utils/async.lua`
 ```lua
--- Chạy external command async, không block Neovim UI
+-- Run external command async, non-blocking Neovim UI
 local M = {}
 
 ---@param cmd table   argv array, e.g. {"psql", "...", "-c", "..."}
@@ -503,8 +503,8 @@ return M
 ```lua
 local M = {}
 
----Tạo debounced function
----@param fn    function  Hàm cần debounce
+---Create debounced function
+---@param fn    function  Function to debounce
 ---@param delay number    Milliseconds
 ---@return function
 function M.debounce(fn, delay)
@@ -531,10 +531,10 @@ return M
 
 ### `lua/sql-lens/analyzer/extractor.lua`
 ```lua
--- Dùng Treesitter để extract SQL statement dưới cursor
+-- Use Treesitter to extract SQL statement under cursor
 local M = {}
 
--- Treesitter query để tìm statement nodes
+-- Treesitter query to find statement nodes
 local QUERY_SRC = [[
   (statement) @stmt
   (select_statement) @stmt
@@ -543,7 +543,7 @@ local QUERY_SRC = [[
   (delete_statement) @stmt
 ]]
 
----Lấy SQL statement mà cursor đang đứng trong
+---Get the SQL statement the cursor is currently in
 ---@param bufnr number
 ---@return string|nil  SQL text
 ---@return number|nil  start_line (0-indexed)
@@ -552,7 +552,7 @@ function M.get_statement_at_cursor(bufnr)
 
   local ok, parser = pcall(vim.treesitter.get_parser, bufnr, "sql")
   if not ok or not parser then
-    -- Fallback: lấy toàn bộ buffer nếu không có SQL parser
+    -- Fallback: get entire buffer if no SQL parser available
     return M.fallback_get_statement(bufnr)
   end
 
@@ -572,7 +572,7 @@ function M.get_statement_at_cursor(bufnr)
 
   for _, node in query:iter_captures(root, bufnr, 0, -1) do
     local sr, sc, er, ec = node:range()
-    -- Cursor nằm trong node này?
+    -- Is cursor inside this node?
     local in_range = (row > sr or (row == sr and col >= sc))
                   and (row < er or (row == er and col <= ec))
     if in_range then
@@ -591,13 +591,13 @@ function M.get_statement_at_cursor(bufnr)
   return text, sr
 end
 
--- Fallback: lấy block SQL bằng cách tìm statement boundary thủ công
+-- Fallback: get SQL block by finding statement boundary manually
 function M.fallback_get_statement(bufnr)
   local lines   = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local cursor  = vim.api.nvim_win_get_cursor(0)
   local cur_row = cursor[1] - 1
 
-  -- Tìm ra đằng trước đến khi gặp dòng trống hoặc semicolon
+  -- Search backwards until hitting an empty line or semicolon
   local start_row = cur_row
   while start_row > 0 do
     local line = lines[start_row]
@@ -626,7 +626,7 @@ return M
 
 ### `lua/sql-lens/analyzer/parser.lua`
 ```lua
--- Parse EXPLAIN output từ các DB khác nhau → chuẩn hóa
+-- Parse EXPLAIN output from different DBs → normalize
 local M = {}
 
 ---@class PlanNode
@@ -640,10 +640,10 @@ local M = {}
 ---@field warnings      string[]
 
 ---Parse PostgreSQL EXPLAIN JSON output
----@param json_data table  Decoded JSON từ psql
+---@param json_data table  Decoded JSON from psql
 ---@return PlanNode
 function M.parse_postgres(json_data)
-  -- PostgreSQL trả về array, lấy phần tử đầu
+  -- PostgreSQL returns an array, take the first element
   local plan_wrapper = json_data[1] or json_data
   local plan = plan_wrapper["Plan"] or plan_wrapper
 
@@ -713,7 +713,7 @@ function M.parse_sqlite(data)
   return root
 end
 
----Entry point: detect DB type và parse
+---Entry point: detect DB type and parse
 ---@param raw_data table
 ---@param db_type  string  "postgres" | "mysql" | "sqlite" | "sqlserver"
 ---@return PlanNode
@@ -736,10 +736,10 @@ return M
 
 ### `lua/sql-lens/analyzer/hints.lua`
 ```lua
--- Sinh performance hints từ PlanNode tree
+-- Generate performance hints from PlanNode tree
 local M = {}
 
-local cfg_thresholds -- set từ setup()
+local cfg_thresholds -- set from setup()
 
 function M.setup(thresholds)
   cfg_thresholds = thresholds
@@ -751,7 +751,7 @@ local function walk(node, hints, depth)
   depth = depth or 0
   local t = cfg_thresholds or {}
 
-  -- 1. Seq Scan cảnh báo
+  -- 1. Seq Scan warning
   if node.node_type == "Seq Scan" and node.relation_name then
     if t.seq_scan_warn then
       table.insert(hints, {
@@ -763,7 +763,7 @@ local function walk(node, hints, depth)
     end
   end
 
-  -- 2. Chi phí cao
+  -- 2. High cost
   if node.total_cost >= (t.cost_error or 10000) then
     table.insert(hints, {
       level   = "error",
@@ -780,7 +780,7 @@ local function walk(node, hints, depth)
     })
   end
 
-  -- 3. Rows estimate vs actual mismatch (chỉ PostgreSQL có actual_rows)
+  -- 3. Rows estimate vs actual mismatch (only PostgreSQL has actual_rows)
   if node.rows and node.actual_rows then
     local ratio = node.actual_rows / math.max(node.rows, 1)
     if ratio > 10 or ratio < 0.1 then
@@ -816,7 +816,7 @@ local function walk(node, hints, depth)
     })
   end
 
-  -- Đệ quy sub-plans
+  -- Recurse into sub-plans
   for _, child in ipairs(node.plans or {}) do
     walk(child, hints, depth + 1)
   end
@@ -830,14 +830,14 @@ function M.analyze(plan_node)
   return hints
 end
 
----Tóm tắt 1 dòng để hiện virtual text
+---Summarize into 1 line for virtual text display
 ---@param plan  PlanNode
 ---@param hints table[]
 ---@return string
 function M.summary_line(plan, hints)
   local parts = {}
 
-  -- Thời gian thực thi (nếu có)
+  -- Execution time (if available)
   if plan.execution_time then
     table.insert(parts, string.format("%.1fms", plan.execution_time))
   end
@@ -845,7 +845,7 @@ function M.summary_line(plan, hints)
   -- Cost
   table.insert(parts, string.format("cost=%.0f", plan.total_cost))
 
-  -- Số warnings
+  -- Number of warnings
   local warns = vim.tbl_filter(function(h) return h.level == "warn" or h.level == "error" end, hints)
   if #warns > 0 then
     table.insert(parts, string.format("⚠ %d issue%s", #warns, #warns > 1 and "s" or ""))
@@ -867,7 +867,7 @@ local M = {}
 
 local NS = vim.api.nvim_create_namespace("sql_lens")
 
--- Highlight groups (xem highlights.lua)
+-- Highlight groups (see highlights.lua)
 local HL = {
   info  = "SqlLensInfo",
   warn  = "SqlLensWarn",
@@ -876,16 +876,16 @@ local HL = {
   dim   = "SqlLensDim",
 }
 
----Xóa toàn bộ virtual text trong buffer
+---Clear all virtual text in buffer
 ---@param bufnr number
 function M.clear(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, NS, 0, -1)
 end
 
----Render summary line dưới câu SQL
+---Render summary line below SQL statement
 ---@param bufnr     number
 ---@param line      number   0-indexed line
----@param summary   string   text hiển thị
+---@param summary   string   text to display
 ---@param level     string   "ok" | "warn" | "error"
 function M.render_summary(bufnr, line, summary, level)
   M.clear(bufnr)
@@ -904,12 +904,12 @@ function M.render_summary(bufnr, line, summary, level)
   })
 end
 
----Render danh sách hints dưới dạng virtual lines
+---Render hints list as virtual lines
 ---@param bufnr   number
----@param line    number  0-indexed, ngay sau câu SQL
+---@param line    number  0-indexed, right after SQL statement
 ---@param hints   table[]
 function M.render_hints(bufnr, line, hints)
-  -- Chỉ show tối đa 3 hints inline để không spam
+  -- Only show max 3 hints inline to avoid spam
   local show = vim.list_slice(hints, 1, 3)
 
   local virt_lines = {}
@@ -922,7 +922,7 @@ function M.render_hints(bufnr, line, hints)
 
   if #hints > 3 then
     table.insert(virt_lines, {
-      { string.format("    ... và %d issue khác (dùng :SqlLensFloatDetail)", #hints - 3), HL.dim }
+      { string.format("    ... and %d more issues (use :SqlLensFloatDetail)", #hints - 3), HL.dim }
     })
   end
 
@@ -996,7 +996,7 @@ function M.setup(opts)
   end
 end
 
--- Attach autocmds cho buffer SQL
+-- Attach autocmds for SQL buffer
 function M.attach_buffer()
   local bufnr = vim.api.nvim_get_current_buf()
   local cfg   = M._config.trigger
@@ -1023,7 +1023,7 @@ function M.attach_buffer()
     })
   end
 
-  -- Chạy lần đầu ngay khi attach
+  -- Run once on first attach
   M._run_analysis(bufnr)
 end
 
@@ -1093,10 +1093,10 @@ return M
 
 ---
 
-## 🔌 Hướng Dẫn Cấu Hình User (`CONNECTION_GUIDE.md` → xem file riêng)
+## 🔌 User Configuration Guide (`CONNECTION_GUIDE.md` → see separate file)
 
 ```lua
--- Trong init.lua của user:
+-- In the user's init.lua:
 require("sql-lens").setup({
   connections = {
     -- PostgreSQL
@@ -1108,7 +1108,7 @@ require("sql-lens").setup({
     -- MySQL
     { name = "staging-mysql", type = "mysql",
       host = "staging.example.com",
-      user = "root", password = "${MYSQL_PASS}",  -- đọc từ env
+      user = "root", password = "${MYSQL_PASS}",  -- read from env
       dbname = "app" },
 
     -- SQL Server
@@ -1123,7 +1123,7 @@ require("sql-lens").setup({
   },
 
   display = {
-    mode = "virtual",   -- hoặc "float" | "sidebar"
+    mode = "virtual",   -- or "float" | "sidebar"
   },
 
   thresholds = {
