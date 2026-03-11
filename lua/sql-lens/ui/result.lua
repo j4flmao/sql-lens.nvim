@@ -120,7 +120,7 @@ local function build_row(cols, widths, sep)
   return sep .. table.concat(parts, sep) .. sep
 end
 
----Check if raw output is already a formatted table (mysql -t, psql, etc.)
+---Check if raw output is already a formatted table (mysql -t produces bordered tables)
 local function is_preformatted(raw)
   return raw:match("^[%s]*[+|%-]") ~= nil
 end
@@ -140,19 +140,12 @@ local function format_preformatted(raw, sql)
   table.insert(output, "  SQL: " .. sql_display)
   table.insert(output, "")
 
-  local row_count = 0
   for line in raw:gmatch("[^\r\n]+") do
-    local rows_match = line:match("^(%d+) rows? in set")
-    local affected_match = line:match("^Query OK, (%d+) rows? affected")
-    if rows_match then
-      row_count = tonumber(rows_match)
-      table.insert(output, "")
-      table.insert(output, "  " .. line)
-    elseif affected_match then
-      table.insert(output, "")
-      table.insert(output, "  " .. line)
-    elseif line:match("^ERROR") then
+    if line:match("^ERROR") then
       table.insert(output, "  ❌ " .. line)
+    elseif line:match("^(%d+) rows? in set") or line:match("^Query OK") then
+      table.insert(output, "")
+      table.insert(output, "  " .. line)
     else
       table.insert(output, "  " .. line)
     end
@@ -162,8 +155,97 @@ local function format_preformatted(raw, sql)
   return output
 end
 
+---Check if output is tab-separated (psql -A, mysql --silent)
+local function is_tsv(raw)
+  local first = raw:match("^([^\r\n]+)")
+  return first and first:find("\t") ~= nil
+end
+
+---Parse tab-separated output into headers + rows
+local function parse_tsv(raw)
+  local lines = {}
+  for line in raw:gmatch("[^\r\n]+") do
+    table.insert(lines, line)
+  end
+
+  local headers = {}
+  local rows = {}
+  local footer = nil
+
+  for i, line in ipairs(lines) do
+    -- psql footer: (5 rows), mysql: 5 rows in set
+    if line:match("^%((%d+) rows?%)") or line:match("^(%d+) rows? in set")
+       or line:match("^Query OK") or line:match("^INSERT") or line:match("^UPDATE")
+       or line:match("^DELETE") or line:match("^CREATE") or line:match("^DROP") then
+      footer = line
+    elseif i == 1 then
+      for col in (line .. "\t"):gmatch("([^\t]*)\t") do
+        table.insert(headers, col)
+      end
+    else
+      local cols = {}
+      for col in (line .. "\t"):gmatch("([^\t]*)\t") do
+        table.insert(cols, col)
+      end
+      if #cols > 0 then
+        table.insert(rows, cols)
+      end
+    end
+  end
+
+  return headers, rows, footer
+end
+
+---Format tab-separated output as a bordered table
+local function format_tsv(raw, sql)
+  local output = {}
+  local headers, rows, footer = parse_tsv(raw)
+
+  table.insert(output, "")
+  table.insert(output, "  ╔══ SqlLens Result ══╗")
+  table.insert(output, "")
+
+  local sql_display = sql:gsub("\n", " "):gsub("%s+", " ")
+  if #sql_display > 90 then
+    sql_display = sql_display:sub(1, 87) .. "..."
+  end
+  table.insert(output, "  SQL: " .. sql_display)
+  table.insert(output, "")
+
+  if #headers == 0 and #rows == 0 then
+    table.insert(output, "  (No result set)")
+  else
+    local widths = calc_widths(headers, rows)
+    local top    = "  " .. border(widths, "┌", "┬", "┐", "─")
+    local hdrsep = "  " .. border(widths, "├", "┼", "┤", "─")
+    local bottom = "  " .. border(widths, "└", "┴", "┘", "─")
+
+    table.insert(output, top)
+    table.insert(output, "  " .. build_row(headers, widths, "│"))
+    table.insert(output, hdrsep)
+
+    for _, row in ipairs(rows) do
+      table.insert(output, "  " .. build_row(row, widths, "│"))
+    end
+
+    table.insert(output, bottom)
+  end
+
+  if footer then
+    table.insert(output, "")
+    table.insert(output, "  " .. footer)
+  end
+
+  table.insert(output, "")
+  return output
+end
+
 ---Format result as a nice bordered table
 local function format_result(raw, sql)
+  if is_tsv(raw) then
+    return format_tsv(raw, sql)
+  end
+
   if is_preformatted(raw) then
     return format_preformatted(raw, sql)
   end

@@ -60,12 +60,13 @@ function PG:execute(sql, cb)
   local cmd = {
     "psql", self:_connstr(),
     "--no-psqlrc", "--pset=pager=off",
+    "-A", "-F", "\t",
     "-c", sql
   }
   async.job(cmd, function(code, stdout, stderr)
     if code ~= 0 then return cb(stderr or "psql error", nil) end
     cb(nil, stdout)
-  end, { env = { COLUMNS = "500" } })
+  end)
 end
 
 function PG:ping(cb)
