@@ -59,7 +59,7 @@ end
 function PG:execute(sql, cb)
   local cmd = {
     "psql", self:_connstr(),
-    "--no-psqlrc",
+    "--no-psqlrc", "--pset=pager=off", "--pset=columns=500",
     "-c", sql
   }
   async.job(cmd, function(code, stdout, stderr)
