@@ -129,7 +129,7 @@ require("sql-lens").setup({
 })
 ```
 
-### Nhiều connections cùng lúc
+### Multiple connections
 
 ```lua
 require("sql-lens").setup({
@@ -140,13 +140,13 @@ require("sql-lens").setup({
     { name = "sqlite",     type = "sqlite",    path = "~/app.db" },
   },
 })
--- Dùng <leader>sc hoặc :SqlLensConnect để chọn connection
--- Hoặc :SqlLensUse dev-pg để chọn trực tiếp
+-- Use <leader>sc or :SqlLensConnect to pick a connection
+-- Or :SqlLensUse dev-pg to switch directly by name
 ```
 
-### Credentials từ .env
+### Credentials from .env
 
-Tạo file `.env` ở project root:
+Create a `.env` file at the project root:
 
 ```bash
 PG_PASS=mysecretpassword
@@ -154,11 +154,11 @@ MYSQL_PASS=rootpass
 MSSQL_PASS=sa_password
 ```
 
-Plugin tự đọc `.env` và thay thế `${VAR_NAME}` trong config. Nhớ thêm `.env` vào `.gitignore`!
+The plugin will automatically read `.env` and replace `${VAR_NAME}` in the config. Remember to add `.env` to `.gitignore`!
 
 ### Project-local config (`.sql-lens.lua`)
 
-Tạo file `.sql-lens.lua` ở root project để override config per-project:
+Create a `.sql-lens.lua` file at the project root to override config per project:
 
 ```lua
 -- .sql-lens.lua
@@ -176,15 +176,15 @@ return {
 
 ```lua
 require("sql-lens").setup({
-  -- Khi nào trigger analyze
+  -- When to trigger analysis
   trigger = {
-    on_write    = true,     -- analyze khi save file
-    on_change   = true,     -- analyze khi gõ (có debounce)
-    debounce_ms = 500,      -- chờ 500ms sau khi ngưng gõ
-    min_length  = 10,       -- bỏ qua query quá ngắn
+    on_write    = true,     -- analyze on save (BufWritePost)
+    on_change   = true,     -- analyze while typing (with debounce)
+    debounce_ms = 500,      -- wait 500ms after last change
+    min_length  = 10,       -- ignore very short queries
   },
 
-  -- Hiển thị
+  -- Display
   display = {
     mode           = "virtual",  -- "virtual" | "float" | "sidebar"
     virtual_prefix = "󰋼 ",
@@ -199,31 +199,31 @@ require("sql-lens").setup({
     },
   },
 
-  -- Ngưỡng cảnh báo
+  -- Thresholds
   thresholds = {
-    cost_warn     = 1000,    -- highlight vàng khi cost > 1000
-    cost_error    = 10000,   -- highlight đỏ khi cost > 10000
+    cost_warn     = 1000,    -- highlight in yellow when cost > 1000
+    cost_error    = 10000,   -- highlight in red when cost > 10000
     rows_warn     = 100000,
-    seq_scan_warn = true,    -- luôn cảnh báo full table scan
+    seq_scan_warn = true,    -- always warn on full table scan
   },
 
-  -- Connections (xem phần Connection Setup)
+  -- Connections (see Connection Setup section)
   connections = {},
 
-  -- Bảo mật
+  -- Secrets
   secrets = {
-    use_env    = true,  -- đọc ${VAR} từ env
-    use_dotenv = true,  -- tìm .env trong project root
+    use_env    = true,  -- read ${VAR} from environment
+    use_dotenv = true,  -- search for .env in project root
   },
 
-  -- Keymaps (set = false để tắt)
+  -- Keymaps (set to false to disable)
   keymaps = {
-    toggle      = "<leader>sq",   -- bật/tắt plugin
+    toggle      = "<leader>sq",   -- enable/disable plugin
     explain     = "<leader>se",   -- show explain plan
-    show_detail = "<leader>sd",   -- floating window chi tiết
-    connect     = "<leader>sc",   -- chọn connection
-    run         = "<leader>sr",   -- chạy query tại cursor
-    run_all     = "<leader>sR",   -- chạy tất cả queries
+    show_detail = "<leader>sd",   -- floating detail window
+    connect     = "<leader>sc",   -- choose connection
+    run         = "<leader>sr",   -- run query at cursor
+    run_all     = "<leader>sR",   -- run all queries
   },
 })
 ```
@@ -232,14 +232,14 @@ require("sql-lens").setup({
 
 | Command | Description |
 |---------|-------------|
-| `:SqlLensConnect` | Mở picker chọn connection |
-| `:SqlLensDisconnect` | Ngắt connection buffer hiện tại |
-| `:SqlLensToggle` | Bật/tắt inline analysis |
-| `:SqlLensExplain` | Analyze tất cả queries trong file |
-| `:SqlLensFloatDetail` | Xem plan chi tiết trong floating window |
-| `:SqlLensRun` | Chạy query tại cursor, hiện kết quả |
-| `:SqlLensRunAll` | Chạy tất cả queries trong file |
-| `:SqlLensUse {name}` | Đổi connection theo tên |
+| `:SqlLensConnect` | Open connection picker |
+| `:SqlLensDisconnect` | Disconnect current buffer |
+| `:SqlLensToggle` | Enable/disable inline analysis |
+| `:SqlLensExplain` | Analyze all queries in the file |
+| `:SqlLensFloatDetail` | Show detailed plan in floating window |
+| `:SqlLensRun` | Run query at cursor and show result |
+| `:SqlLensRunAll` | Run all queries in the file |
+| `:SqlLensUse {name}` | Switch connection by name |
 
 ## ⌨️ Default Keymaps
 
@@ -255,23 +255,23 @@ require("sql-lens").setup({
 
 ## 🔧 Requirements
 
-| Database | CLI cần có | Cài đặt |
-|----------|-----------|---------|
+| Database   | Required CLI | Install |
+|-----------|--------------|---------|
 | PostgreSQL | `psql` | `brew install postgresql` / `apt install postgresql-client` |
 | MySQL | `mysql` | `brew install mysql-client` / `apt install mysql-client` |
 | SQL Server | `sqlcmd` | [Microsoft ODBC Driver](https://learn.microsoft.com/en-us/sql/tools/sqlcmd/sqlcmd-utility) |
-| SQLite | `sqlite3` | Thường có sẵn / `brew install sqlite` |
+| SQLite | `sqlite3` | usually available / `brew install sqlite` |
 
 - **Neovim >= 0.9**
-- **nvim-treesitter** với SQL parser (optional, cải thiện detection)
+- **nvim-treesitter** with SQL parser (optional, improves detection)
 
 ## 📖 Workflow Demo
 
-1. Mở file `.sql` → plugin tự analyze tất cả queries, hiện cost inline
-2. `<leader>sr` — Chạy query tại cursor, xem kết quả dạng bảng + stats
-3. `<leader>se` — Refresh explain plan (sau khi tạo index)
-4. `<leader>sd` — Xem chi tiết plan tree + IO stats
-5. `<leader>sc` — Đổi sang connection khác
+1. Open a `.sql` file → plugin analyzes all queries and shows inline cost
+2. `<leader>sr` — Run the query at cursor, show table result + stats
+3. `<leader>se` — Refresh explain plan (after creating indexes)
+4. `<leader>sd` — View detailed plan tree + IO stats
+5. `<leader>sc` — Switch to another connection
 
 ## License
 
