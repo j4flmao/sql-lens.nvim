@@ -6,6 +6,7 @@ function M.setup()
     SqlLensInfo  = { fg = "#60a5fa", bold = false },
     SqlLensWarn  = { fg = "#facc15", bold = true  },
     SqlLensError = { fg = "#f87171", bold = true  },
+    SqlLensErrorToken = { fg = "#f87171", underline = true },
     SqlLensDim   = { fg = "#6b7280", bold = false },
     SqlLensBg    = { bg = "#1e2030"               },
   }

@@ -23,4 +23,12 @@ function Base:execute(sql, cb)
   error("Not implemented")
 end
 
+---Lint SQL server-side (validate without executing)
+---@param sql string
+---@param cb fun(err?: string)
+function Base:lint(sql, cb)
+  -- Default: no server-side lint
+  cb(nil)
+end
+
 return Base

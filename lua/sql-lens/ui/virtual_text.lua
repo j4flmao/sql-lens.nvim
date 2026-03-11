@@ -122,6 +122,36 @@ function M.render_hints(bufnr, line, hints)
   })
 end
 
+---Render lint errors inline (offline lint)
+function M.render_lint_errors(bufnr, lint_errors)
+  for _, e in ipairs(lint_errors) do
+    local hl = HL[e.level] or HL.error
+    local icon = e.level == "error" and "✗" or "⚠"
+
+    -- Underline the offending token if we have col info
+    if e.token and e.col then
+      local line_text = vim.api.nvim_buf_get_lines(bufnr, e.line, e.line + 1, false)[1] or ""
+      local s, en = line_text:lower():find(e.token:lower(), e.col + 1, true)
+      if s then
+        vim.api.nvim_buf_set_extmark(bufnr, NS, e.line, s - 1, {
+          end_col  = en,
+          hl_group = "SqlLensErrorToken",
+          priority = 120,
+        })
+      end
+    end
+
+    -- Virtual text at end of line
+    vim.api.nvim_buf_set_extmark(bufnr, NS, e.line, 0, {
+      virt_text = {
+        { "  " .. icon .. " " .. e.message, hl },
+      },
+      virt_text_pos = "eol",
+      priority      = 110,
+    })
+  end
+end
+
 function M.highlight_error_token(bufnr, start_line, sql, err)
   if not sql or not err then
     return

@@ -3,9 +3,15 @@ local M = {}
 local result_buf = nil
 local result_win = nil
 
+---Check if a line is a SQL Server error/warning message
+local function is_sql_error(line)
+  return line:match("^Msg %d+, Level %d+, State %d+")
+      or line:match("^Msg %d+, Niveau %d+")
+end
+
 ---Parse raw sqlcmd output into structured data
 local function parse_output(raw)
-  local sections = { headers = {}, rows = {}, stats = {}, affected = nil }
+  local sections = { headers = {}, rows = {}, stats = {}, affected = nil, errors = {} }
   local lines = {}
   for line in raw:gmatch("[^\r\n]+") do
     table.insert(lines, line)
@@ -13,11 +19,19 @@ local function parse_output(raw)
 
   local header_line = nil
   local data_started = false
+  local in_error = false
 
   for _, line in ipairs(lines) do
     local trimmed = line:match("^%s*(.-)%s*$")
     if trimmed == "" then
+      in_error = false
       -- skip
+    elseif is_sql_error(line) then
+      table.insert(sections.errors, trimmed)
+      in_error = true
+    elseif in_error then
+      -- Continuation line after a Msg line (e.g. the actual error detail)
+      table.insert(sections.errors, trimmed)
     elseif line:match("SQL Server Execution Times") or line:match("SQL Server parse and compile") then
       -- skip header
     elseif line:match("CPU time = %d+ ms") then
@@ -124,8 +138,19 @@ local function format_result(raw, sql)
   table.insert(output, "  SQL: " .. sql_display)
   table.insert(output, "")
 
-  if #sections.headers == 0 and #sections.rows == 0 then
+  -- SQL Server errors embedded in output (exit code 0)
+  if #sections.errors > 0 then
+    table.insert(output, "  ── Errors ──")
+    for _, e in ipairs(sections.errors) do
+      table.insert(output, "  ❌ " .. e)
+    end
+    table.insert(output, "")
+  end
+
+  if #sections.headers == 0 and #sections.rows == 0 and #sections.errors == 0 then
     table.insert(output, "  (No result set)")
+  elseif #sections.headers == 0 and #sections.rows == 0 then
+    -- errors already shown above, skip "No result set"
   else
     local widths = calc_widths(sections.headers, sections.rows)
 
@@ -224,6 +249,18 @@ function M.show(raw, sql)
       result_win = nil
     end
   end, opts)
+  vim.keymap.set("n", "<Left>", function()
+    vim.cmd("normal! zh")
+  end, opts)
+  vim.keymap.set("n", "<Right>", function()
+    vim.cmd("normal! zl")
+  end, opts)
+  vim.keymap.set("n", "H", function()
+    vim.cmd("normal! zH")
+  end, opts)
+  vim.keymap.set("n", "L", function()
+    vim.cmd("normal! zL")
+  end, opts)
 end
 
 ---Apply highlight to result buffer
@@ -251,6 +288,10 @@ function M._highlight(bufnr, lines)
       if is_header then
         vim.api.nvim_buf_add_highlight(bufnr, ns, "SqlLensWarn", row, 0, -1)
       end
+    elseif line:match("── Errors") then
+      vim.api.nvim_buf_add_highlight(bufnr, ns, "SqlLensError", row, 0, -1)
+    elseif line:match("❌") then
+      vim.api.nvim_buf_add_highlight(bufnr, ns, "SqlLensError", row, 0, -1)
     elseif line:match("── Performance") then
       vim.api.nvim_buf_add_highlight(bufnr, ns, "SqlLensInfo", row, 0, -1)
     elseif line:match("📊") then

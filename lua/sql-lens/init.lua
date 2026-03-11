@@ -5,6 +5,7 @@ local conn_mgr    = require("sql-lens.connections")
 local extractor   = require("sql-lens.analyzer.extractor")
 local parser      = require("sql-lens.analyzer.parser")
 local hints_mod   = require("sql-lens.analyzer.hints")
+local lint_mod    = require("sql-lens.analyzer.lint")
 local vt          = require("sql-lens.ui.virtual_text")
 local float       = require("sql-lens.ui.float")
 local highlights  = require("sql-lens.ui.highlights")
@@ -42,6 +43,14 @@ end
 function M.attach_buffer()
   local bufnr = vim.api.nvim_get_current_buf()
   local cfg   = M._config.trigger
+
+  -- Offline lint: runs fast with short debounce (150ms)
+  local lint_debounced = debounce.debounce(
+    function() M._run_lint(bufnr) end,
+    150
+  )
+
+  -- Server explain: runs slower with longer debounce
   local analyze_debounced = debounce.debounce(
     function() M._run_all_analysis(bufnr) end,
     cfg.debounce_ms
@@ -53,7 +62,10 @@ function M.attach_buffer()
     vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
       buffer   = bufnr,
       group    = aug,
-      callback = analyze_debounced,
+      callback = function()
+        lint_debounced()      -- fast offline lint
+        analyze_debounced()   -- slow server explain
+      end,
     })
   end
 
@@ -61,14 +73,54 @@ function M.attach_buffer()
     vim.api.nvim_create_autocmd("BufWritePost", {
       buffer   = bufnr,
       group    = aug,
-      callback = function() M._run_all_analysis(bufnr) end,
+      callback = function()
+        M._run_lint(bufnr)
+        M._run_all_analysis(bufnr)
+      end,
     })
   end
 
+  -- Run on first attach
   M._run_all_analysis(bufnr)
 end
 
----Analyze ALL SQL statements in the buffer
+---Collect offline lint errors for all statements
+---@return table[] lint_errors, table[] statements
+function M._collect_lint(bufnr)
+  local statements = extractor.get_all_statements(bufnr)
+  if not statements or #statements == 0 then return {}, {} end
+
+  local all_errors = {}
+  -- Track which statements have errors (by start_line)
+  local errored_stmts = {}
+  for _, stmt in ipairs(statements) do
+    local errs = lint_mod.lint(stmt.sql, stmt.start_line)
+    if #errs > 0 then
+      vim.list_extend(all_errors, errs)
+      for _, e in ipairs(errs) do
+        if e.level == "error" then
+          errored_stmts[stmt.start_line] = true
+        end
+      end
+    end
+  end
+
+  return all_errors, statements, errored_stmts
+end
+
+---FAST offline lint only (on TextChanged, before server respond)
+function M._run_lint(bufnr)
+  if not M._enabled then return end
+
+  local all_errors, statements = M._collect_lint(bufnr)
+
+  vt.clear(bufnr)
+  if #all_errors > 0 then
+    vt.render_lint_errors(bufnr, all_errors)
+  end
+end
+
+---Analyze ALL SQL statements: offline lint + server EXPLAIN
 function M._run_all_analysis(bufnr)
   if not M._enabled then return end
 
@@ -79,24 +131,38 @@ function M._run_all_analysis(bufnr)
     return
   end
 
-  local statements = extractor.get_all_statements(bufnr)
-  if not statements or #statements == 0 then return end
+  local all_errors, statements, errored_stmts = M._collect_lint(bufnr)
+  if #statements == 0 then return end
 
-  -- Clear all previous marks once before rendering new results
   vt.clear(bufnr)
 
+  -- Render offline lint errors first (visible immediately)
+  if #all_errors > 0 then
+    vt.render_lint_errors(bufnr, all_errors)
+  end
+
+  -- Run server explain for each statement (async)
   for _, stmt in ipairs(statements) do
     if #stmt.sql >= (M._config.trigger.min_length or 10) then
-      M._analyze_one(bufnr, conn, stmt.sql, stmt.start_line)
+      -- Only skip THIS statement if IT has a hard lint error
+      if not errored_stmts[stmt.start_line] then
+        M._analyze_one(bufnr, conn, stmt.sql, stmt.start_line)
+      end
     end
   end
 end
 
----Analyze a single SQL statement and render inline
+---Analyze a single SQL statement via server and render inline
 function M._analyze_one(bufnr, conn, sql, start_line)
   conn:explain(sql, function(err, raw_data)
     if err then
-      vt.render_summary(bufnr, start_line, "Error: " .. tostring(err):sub(1, 60), "error")
+      local err_str = tostring(err or "")
+      local first_line = err_str:match("([^\r\n]+)") or err_str
+      local msg = first_line
+      if #msg > 80 then
+        msg = msg:sub(1, 77) .. "..."
+      end
+      vt.render_summary(bufnr, start_line, "Error: " .. msg, "error")
       return
     end
 
@@ -173,7 +239,7 @@ function M.run_current()
   local result_ui = require("sql-lens.ui.result")
   local bufnr = vim.api.nvim_get_current_buf()
 
-  local sql, _ = extractor.get_statement_at_cursor(bufnr)
+  local sql, start_line = extractor.get_statement_at_cursor(bufnr)
   if not sql or #sql < 3 then
     vim.notify("SqlLens: No SQL statement at cursor", vim.log.levels.WARN)
     return
@@ -182,6 +248,19 @@ function M.run_current()
   local conn = conn_mgr.get_active(bufnr)
   if not conn then
     vim.notify("SqlLens: No connection — use :SqlLensConnect", vim.log.levels.WARN)
+    return
+  end
+
+  -- Offline lint first
+  local lint_errors = lint_mod.lint(sql, start_line)
+  local hard_errors = vim.tbl_filter(function(e) return e.level == "error" end, lint_errors)
+  if #hard_errors > 0 then
+    vt.clear(bufnr)
+    vt.render_lint_errors(bufnr, lint_errors)
+    result_ui.show_error(
+      table.concat(vim.tbl_map(function(e) return e.message end, hard_errors), "\n"),
+      sql
+    )
     return
   end
 
@@ -218,7 +297,6 @@ function M.run_all()
     return
   end
 
-  -- Concat all queries into one batch
   local all_sql = {}
   for _, stmt in ipairs(statements) do
     table.insert(all_sql, stmt.sql .. ";")

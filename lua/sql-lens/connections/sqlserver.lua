@@ -41,6 +41,34 @@ function MSSQL:_args()
   return args
 end
 
+---Lint SQL using NOEXEC so it is parsed/compiled but not executed
+---@param sql string
+---@param cb fun(err?: string)
+function MSSQL:lint(sql, cb)
+  local args = self:_args()
+  vim.list_extend(args, { "-W", "-s", "\t" })
+
+  local tmpfile = vim.fn.tempname() .. ".sql"
+  local batch = table.concat({
+    "SET NOEXEC ON;",
+    "GO",
+    sql,
+    "GO",
+    "SET NOEXEC OFF;",
+  }, "\n")
+  vim.fn.writefile(vim.split(batch, "\n"), tmpfile)
+  vim.list_extend(args, { "-i", tmpfile })
+
+  async.job(args, function(code, stdout, stderr)
+    vim.fn.delete(tmpfile)
+    if code ~= 0 then
+      cb(stderr or stdout or "sqlcmd lint error")
+    else
+      cb(nil)
+    end
+  end)
+end
+
 function MSSQL:wrap_explain(sql)
   -- Each SET SHOWPLAN must be alone in its batch (separated by GO)
   -- Part 1: SHOWPLAN_ALL for estimated plan
