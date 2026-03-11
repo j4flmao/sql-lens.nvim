@@ -1,10 +1,10 @@
 local M = {}
 
-function M.job(cmd, cb)
+function M.job(cmd, cb, opts)
   local stdout_data = {}
   local stderr_data = {}
 
-  local job = vim.fn.jobstart(cmd, {
+  local job_opts = {
     stdout_buffered = true,
     stderr_buffered = true,
 
@@ -27,7 +27,13 @@ function M.job(cmd, cb)
         cb(code, out, err)
       end)
     end,
-  })
+  }
+
+  if opts and opts.env then
+    job_opts.env = opts.env
+  end
+
+  local job = vim.fn.jobstart(cmd, job_opts)
 
   if job <= 0 then
     cb(1, "", "Failed to start job: " .. table.concat(cmd, " "))
