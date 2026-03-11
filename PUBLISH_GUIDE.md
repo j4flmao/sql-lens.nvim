@@ -2,12 +2,12 @@
 
 ## Pre-publish Checklist
 
-- [ ] Plugin hoạt động với ít nhất 1 DB (PostgreSQL)
-- [ ] `doc/sql-lens.txt` viết xong (`:help sql-lens` hoạt động)
-- [ ] README có gif/screenshot demo
-- [ ] Tests pass
-- [ ] LICENSE file (MIT recommended)
-- [ ] CHANGELOG.md có entry v0.1.0
+- [ ] Plugin works with at least one database (e.g. PostgreSQL)
+- [ ] `doc/sql-lens.txt` is written and `:help sql-lens` works
+- [ ] README includes a gif/screenshot demo
+- [ ] Tests pass locally and in CI
+- [ ] LICENSE file exists (MIT recommended)
+- [ ] CHANGELOG.md has an entry for v0.1.0
 
 ---
 
@@ -102,7 +102,7 @@ Real-time SQL query plan analyzer — see EXPLAIN output inline as you type.
   Real-time SQL query plan analyzer with inline EXPLAIN output.
 ```
 
-3. Gửi PR với title: `Add sql-lens.nvim`
+3. Open a PR with the title: `Add sql-lens.nvim`
 
 ---
 
