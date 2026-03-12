@@ -7,6 +7,7 @@ local adapters = {
   mysql     = require("sql-lens.connections.mysql"),
   sqlserver = require("sql-lens.connections.sqlserver"),
   sqlite    = require("sql-lens.connections.sqlite"),
+  mongodb   = require("sql-lens.connections.mongodb"),
 }
 
 M._connections = {}

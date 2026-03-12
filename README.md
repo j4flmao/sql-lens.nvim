@@ -8,7 +8,7 @@ Real-time SQL query plan analyzer — see EXPLAIN output inline + execute querie
 ## ✨ Features
 
 - ⚡ Real-time EXPLAIN as you type (debounced)
-- 🔌 PostgreSQL, MySQL, SQL Server (including LocalDB), SQLite
+- 🔌 PostgreSQL, MySQL, SQL Server (including LocalDB), SQLite, MongoDB
 - 💡 Smart hints: missing indexes, high cost, row estimate drift
 - 🎨 Inline virtual text + floating detail window
 - 🏃 Execute queries & view results in a formatted table inside Neovim
@@ -133,6 +133,28 @@ require("sql-lens").setup({
 > **Windows note:** Make sure `mysql` is in your system PATH.
 > For Laragon, add `C:\laragon\bin\mysql\mysql-x.x.x-winx64\bin` to your PATH environment variable.
 
+### MongoDB
+
+```lua
+require("sql-lens").setup({
+  connections = {
+    {
+      name = "local-mongo",
+      type = "mongodb",
+      host = "127.0.0.1",
+      port = 27017,
+      dbname = "mydb",          -- optional: omit to pick database later via :SqlLensDB
+      -- user = "admin",        -- optional: omit for no-auth (default Docker)
+      -- password = "${MONGO_PASS}",
+      -- authSource = "admin",  -- optional: auth database
+    },
+  },
+})
+```
+
+> **Note:** Requires `mongosh` in your PATH. Queries are JavaScript (mongosh syntax),
+> e.g. `db.users.find({age: {$gt: 25}})`.
+
 ### SQLite
 
 ```lua
@@ -155,6 +177,7 @@ require("sql-lens").setup({
     { name = "dev-pg",     type = "postgres",  host = "localhost", dbname = "dev",  user = "postgres", password = "secret" },
     { name = "staging-pg", type = "postgres",  host = "staging.company.com", dbname = "app", user = "readonly", password = "${STAGING_PG_PASS}" },
     { name = "local-sql",  type = "sqlserver", host = [[(localdb)\MSSQLLocalDB]], dbname = "MyDB" },
+    { name = "mongo",      type = "mongodb",   host = "127.0.0.1", port = 27017 },
     { name = "sqlite",     type = "sqlite",    path = "~/app.db" },
   },
 })
@@ -304,6 +327,7 @@ require("sql-lens").setup({
 | PostgreSQL | `psql` | `brew install postgresql` / `apt install postgresql-client` |
 | MySQL | `mysql` | `brew install mysql-client` / `apt install mysql-client` / Laragon (add to PATH) |
 | SQL Server | `sqlcmd` | [Microsoft ODBC Driver](https://learn.microsoft.com/en-us/sql/tools/sqlcmd/sqlcmd-utility) |
+| MongoDB | `mongosh` | [MongoDB Shell](https://www.mongodb.com/try/download/shell) / `brew install mongosh` |
 | SQLite | `sqlite3` | usually available / `brew install sqlite` |
 
 - **Neovim >= 0.9**

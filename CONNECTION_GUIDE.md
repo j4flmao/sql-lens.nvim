@@ -93,6 +93,7 @@ Workflow:
 | MySQL       | `mysql`     | `brew install mysql-client`     |
 | SQL Server  | `sqlcmd`    | Microsoft ODBC Driver           |
 | SQLite      | `sqlite3`   | `brew install sqlite` (built-in)|
+| MongoDB     | `mongosh`   | MongoDB Shell                   |
 | MariaDB     | `mysql`     | use MySQL adapter               |
 | CockroachDB | `cockroach` | CockroachDB CLI                 |
 

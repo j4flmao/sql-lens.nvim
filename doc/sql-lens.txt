@@ -14,12 +14,12 @@ CONTENTS                                                    *sql-lens-contents*
 ==============================================================================
 INTRODUCTION                                                  *sql-lens-intro*
 
-sql-lens.nvim shows PostgreSQL/MySQL/SQLServer/SQLite query execution plans
-inline in your buffer as you type SQL.
+sql-lens.nvim shows PostgreSQL/MySQL/SQLServer/SQLite/MongoDB query execution
+plans inline in your buffer as you type SQL.
 
 Features:
 - Real-time EXPLAIN as you type (debounced)
-- PostgreSQL, MySQL, SQL Server, SQLite support
+- PostgreSQL, MySQL, SQL Server, SQLite, MongoDB support
 - Smart hints: missing indexes, high cost, row estimate drift
 - Inline virtual text + floating detail window
 - .env credential loading
@@ -32,15 +32,16 @@ Install with your package manager, then call setup(): >lua
   require("sql-lens").setup({
     connections = {
       { name = "local", type = "postgres",
-        host = "localhost", dbname = "mydb",
-        user = "postgres", password = "secret" },
+        host = "localhost",
+        user = "postgres", password = "secret",
+        dbname = "mydb" },  -- optional: omit to pick later via :SqlLensDB
     }
   })
 <
 
 Requirements:
 - Neovim >= 0.9
-- `psql` / `mysql` / `sqlcmd` / `sqlite3` CLI in PATH
+- `psql` / `mysql` / `sqlcmd` / `sqlite3` / `mongosh` CLI in PATH
 - nvim-treesitter with SQL parser (optional, improves detection)
 
 ==============================================================================
@@ -63,6 +64,20 @@ COMMANDS                                                   *sql-lens-commands*
 
 :SqlLensUse {name}                                            *:SqlLensUse*
     Set active connection by name.
+
+:SqlLensRun                                                    *:SqlLensRun*
+    Execute SQL statement at cursor and show results.
+
+:SqlLensRunAll                                              *:SqlLensRunAll*
+    Execute all SQL statements in the buffer.
+
+:SqlLensDB                                                      *:SqlLensDB*
+    Open database picker — fetches available databases from
+    the active connection and lets you switch dynamically.
+    Supports search filtering and scrolling.
+
+:SqlLensReport                                              *:SqlLensReport*
+    Generate HTML report for all queries.
 
 ==============================================================================
 CONFIGURATION                                               *sql-lens-config*
@@ -93,6 +108,10 @@ Default configuration: >lua
       explain     = "<leader>se",
       show_detail = "<leader>sd",
       connect     = "<leader>sc",
+      run         = "<leader>sr",
+      run_all     = "<leader>sR",
+      pick_db     = "<leader>sD",
+      report      = "<leader>sH",
     },
   }
 <
@@ -103,10 +122,15 @@ CONNECTIONS                                            *sql-lens-connections*
 Connections can be configured in setup(), .env files, or project-local
 .sql-lens.lua files. See CONNECTION_GUIDE.md for full documentation.
 
+The `dbname` field is optional for MySQL, PostgreSQL, and SQL Server.
+If omitted, you will be prompted to pick a database after connecting.
+Use :SqlLensDB or <leader>sD to switch databases at any time.
+
 Supported databases:
 - PostgreSQL (psql)
 - MySQL / MariaDB (mysql)
 - SQL Server (sqlcmd)
 - SQLite (sqlite3)
+- MongoDB (mongosh)
 
  vim:tw=78:ts=8:ft=help:norl:

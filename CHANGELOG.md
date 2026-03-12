@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0] - 2026-03-12
+
+### Added
+- Dynamic database selection: `dbname` is now optional for MySQL, PostgreSQL, and SQL Server
+- `:SqlLensDB` command and `<leader>sD` keymap to pick a database from the server
+- Custom floating picker with search filtering and scroll (max 5 visible items)
+- `list_databases()` method for MySQL adapter (using `SHOW DATABASES`)
+- Auto-prompt database picker when connecting without `dbname`
+- MongoDB adapter with `mongosh` support (execute, ping, list_databases, explain)
+
+### Changed
+- PostgreSQL `_connstr()` defaults to `"postgres"` database when `dbname` is omitted
+- Connection picker now shows database status on connect
+
 ## [0.2.0] - 2026-03-11
 
 ### Added
