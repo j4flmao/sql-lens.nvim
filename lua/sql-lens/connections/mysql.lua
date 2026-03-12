@@ -25,7 +25,7 @@ function MySQL:_args()
   if c.password and c.password ~= "" then
     table.insert(args, string.format("-p%s", c.password))
   end
-  if c.dbname then
+  if c.dbname then -- optional: omit to pick database later via :SqlLensDB
     table.insert(args, c.dbname)
   end
   return args
@@ -61,6 +61,22 @@ function MySQL:ping(cb)
   local args = self:_args()
   vim.list_extend(args, { "-e", "SELECT 1" })
   async.job(args, function(code) cb(code == 0) end)
+end
+
+function MySQL:list_databases(cb)
+  local args = self:_args()
+  vim.list_extend(args, { "--silent", "--raw", "-e", "SHOW DATABASES" })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local dbs = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local name = line:match("^%s*(.-)%s*$")
+      if name ~= "" then
+        table.insert(dbs, name)
+      end
+    end
+    cb(nil, dbs)
+  end)
 end
 
 return MySQL

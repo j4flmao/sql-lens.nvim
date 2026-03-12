@@ -64,15 +64,57 @@ function M.pick_and_connect()
   vim.ui.select(M._connections, {
     prompt = "SqlLens — Choose connection:",
     format_item = function(c)
-      return c.config.name .. " (" .. c.type .. ")"
+      local db = c.config.dbname or "(no database)"
+      return c.config.name .. " (" .. c.type .. " → " .. db .. ")"
     end,
   }, function(choice)
     if choice then
       local bufnr = vim.api.nvim_get_current_buf()
       M._active[bufnr] = choice
       M._disconnected[bufnr] = nil
-      vim.notify("SqlLens: Connected to '" .. choice.config.name .. "'", vim.log.levels.INFO)
+      if not choice.config.dbname or choice.config.dbname == "" then
+        vim.notify("SqlLens: Connected to '" .. choice.config.name .. "' (no database selected)", vim.log.levels.INFO)
+        vim.defer_fn(function() M.pick_database() end, 100)
+      else
+        vim.notify("SqlLens: Connected to '" .. choice.config.name .. "' → " .. choice.config.dbname, vim.log.levels.INFO)
+      end
     end
+  end)
+end
+
+function M.pick_database()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local conn = M.get_active(bufnr)
+  if not conn then
+    vim.notify("SqlLens: No active connection — use :SqlLensConnect first", vim.log.levels.WARN)
+    return
+  end
+
+  if not conn.list_databases then
+    vim.notify("SqlLens: This adapter does not support listing databases", vim.log.levels.WARN)
+    return
+  end
+
+  vim.notify("SqlLens: Fetching databases...", vim.log.levels.INFO)
+
+  conn:list_databases(function(err, dbs)
+    if err then
+      vim.notify("SqlLens: " .. tostring(err), vim.log.levels.ERROR)
+      return
+    end
+    if #dbs == 0 then
+      vim.notify("SqlLens: No databases found", vim.log.levels.WARN)
+      return
+    end
+
+    local picker = require("sql-lens.ui.picker")
+    picker.open(dbs, {
+      prompt = "Database (" .. conn.config.name .. ")",
+      on_select = function(choice)
+        conn.config.dbname = choice
+        vim.notify("SqlLens: Switched to database '" .. choice .. "'", vim.log.levels.INFO)
+      end,
+    })
   end)
 end
 

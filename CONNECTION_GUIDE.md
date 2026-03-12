@@ -7,8 +7,8 @@
 ```lua
 require("sql-lens").setup({
   connections = {
-    { name = "dev-pg",    type = "postgres",  ... },
-    { name = "dev-mysql", type = "mysql",     ... },
+    { name = "dev-pg",    type = "postgres",  ... },  -- dbname optional
+    { name = "dev-mysql", type = "mysql",     ... },  -- dbname optional
     { name = "local-db",  type = "sqlite", path = "~/app.db" },
   }
 })
@@ -55,11 +55,33 @@ The plugin will detect and load this profile when you open SQL files inside that
 ### 4. Choose connection at runtime
 
 ```vim
-:SqlLensConnect          " Open picker (telescope/fzf/vim.ui.select)
+:SqlLensConnect          " Open picker
 :SqlLensUse dev-pg       " Switch directly by name
+:SqlLensDB               " Pick database from server (dynamic list)
 ```
 
-Or use the `<leader>sc` keymap to open the picker.
+Or use `<leader>sc` to open the connection picker, `<leader>sD` to pick a database.
+
+### 5. Dynamic database selection
+
+Connect to a server without specifying `dbname`, then pick a database at runtime:
+
+```lua
+require("sql-lens").setup({
+  connections = {
+    { name = "dev-mysql", type = "mysql",
+      host = "127.0.0.1", port = 3306,
+      user = "root", password = "" },
+      -- no dbname → will prompt to pick after connecting
+  }
+})
+```
+
+Workflow:
+1. `:SqlLensConnect` → pick connection (auto-prompts database picker if no `dbname`)
+2. `:SqlLensDB` or `<leader>sD` → pick/switch database anytime
+3. Run queries on the selected database
+4. Create a new database → `:SqlLensDB` again to see it in the list
 
 ---
 
@@ -90,5 +112,5 @@ Or use the `<leader>sc` keymap to open the picker.
   port = 15432,        -- forwarded port
   user = "readonly",
   password = "${PROD_RO_PASS}",
-  dbname = "production" }
+  dbname = "production" }  -- optional: omit to pick later via :SqlLensDB
 ```

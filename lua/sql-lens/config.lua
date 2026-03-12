@@ -26,6 +26,9 @@ M.defaults = {
     rows_warn     = 100000,
     seq_scan_warn = true,
   },
+  lint = {
+    enable_offline = false,
+  },
   connections = {},
   secrets = {
     use_env    = true,
@@ -39,6 +42,7 @@ M.defaults = {
     run           = "<leader>sr",
     run_all       = "<leader>sR",
     report        = "<leader>sH",
+    pick_db       = "<leader>sD",
   },
 }
 

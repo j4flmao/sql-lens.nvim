@@ -38,6 +38,9 @@ function M.setup(opts)
     if km.report then
       vim.keymap.set("n", km.report, M.report, { desc = "SqlLens: HTML report" })
     end
+    if km.pick_db then
+      vim.keymap.set("n", km.pick_db, M.pick_database, { desc = "SqlLens: pick database" })
+    end
   end
 end
 
@@ -254,6 +257,10 @@ end
 
 function M.use_connection(name)
   conn_mgr.set_active_by_name(vim.api.nvim_get_current_buf(), name)
+end
+
+function M.pick_database()
+  conn_mgr.pick_database()
 end
 
 ---Execute the SQL statement at cursor and show results

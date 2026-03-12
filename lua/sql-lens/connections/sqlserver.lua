@@ -28,7 +28,7 @@ function MSSQL:_args()
     table.insert(args, "-E")
   end
 
-  if c.dbname then
+  if c.dbname then -- optional: omit to pick database later via :SqlLensDB
     vim.list_extend(args, { "-d", c.dbname })
   end
 
@@ -137,6 +137,22 @@ function MSSQL:ping(cb)
   local args = self:_args()
   vim.list_extend(args, { "-Q", "SELECT 1" })
   async.job(args, function(code) cb(code == 0) end)
+end
+
+function MSSQL:list_databases(cb)
+  local args = self:_args()
+  vim.list_extend(args, { "-h", "-1", "-W", "-Q", "SELECT name FROM sys.databases ORDER BY name" })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local dbs = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local name = line:match("^%s*(.-)%s*$")
+      if name ~= "" and not name:match("^%-%-") then
+        table.insert(dbs, name)
+      end
+    end
+    cb(nil, dbs)
+  end)
 end
 
 return MSSQL

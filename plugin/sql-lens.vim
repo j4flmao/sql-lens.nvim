@@ -10,6 +10,7 @@ command! SqlLensRun          lua require('sql-lens').run_current()
 command! -range SqlLensRunSelection lua require('sql-lens').run_selection()
 command! SqlLensRunAll       lua require('sql-lens').run_all()
 command! SqlLensReport       lua require('sql-lens').report()
+command! SqlLensDB           lua require('sql-lens').pick_database()
 command! -nargs=1 SqlLensUse lua require('sql-lens').use_connection(<q-args>)
 
 augroup SqlLens

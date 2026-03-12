@@ -52,7 +52,7 @@ require("sql-lens").setup({
       name   = "local-sqlserver",
       type   = "sqlserver",
       host   = [[(localdb)\MSSQLLocalDB]],  -- or "localhost" / "server\instance"
-      dbname = "MyDatabase",
+      dbname = "MyDatabase",  -- optional: omit to pick database later via :SqlLensDB
       -- No user/password needed → uses Windows Authentication
     },
   },
@@ -69,7 +69,7 @@ require("sql-lens").setup({
       type     = "sqlserver",
       host     = "192.168.1.100",
       port     = 1433,          -- default 1433
-      dbname   = "MyApp",
+      dbname   = "MyApp",       -- optional: omit to pick database later via :SqlLensDB
       user     = "sa",
       password = "${MSSQL_PASS}",  -- read from env var
       -- On Linux/macOS if you need to trust the server certificate:
@@ -91,7 +91,7 @@ require("sql-lens").setup({
       port     = 5432,
       user     = "postgres",
       password = "${PG_PASS}",
-      dbname   = "mydb",
+      dbname   = "mydb",         -- optional: omit to pick database later via :SqlLensDB
       -- sslmode = "require",
     },
   },
@@ -110,7 +110,7 @@ require("sql-lens").setup({
       port     = 3306,
       user     = "root",
       password = "${MYSQL_PASS}",
-      dbname   = "app",
+      dbname   = "app",          -- optional: omit to pick database later via :SqlLensDB
     },
   },
 })
@@ -125,8 +125,8 @@ require("sql-lens").setup({
   host     = "127.0.0.1",
   port     = 3306,
   user     = "root",
-  password = "",       -- empty password is supported
-  dbname   = "my_database",
+  password = "",              -- empty password is supported
+  dbname   = "my_database",  -- optional: omit to pick database later via :SqlLensDB
 }
 ```
 
@@ -242,6 +242,7 @@ require("sql-lens").setup({
     connect     = "<leader>sc",   -- choose connection
     run         = "<leader>sr",   -- run query at cursor
     run_all     = "<leader>sR",   -- run all queries
+    pick_db     = "<leader>sD",   -- pick database from server
   },
 })
 ```
@@ -257,6 +258,7 @@ require("sql-lens").setup({
 | `:SqlLensFloatDetail` | Show detailed plan in floating window |
 | `:SqlLensRun` | Run query at cursor and show result |
 | `:SqlLensRunAll` | Run all queries in the file |
+| `:SqlLensDB` | Pick database from server (dynamic) |
 | `:SqlLensUse {name}` | Switch connection by name |
 
 ## ⌨️ Default Keymaps
@@ -267,6 +269,7 @@ require("sql-lens").setup({
 | `<leader>se` | Explain all queries |
 | `<leader>sd` | Float detail window |
 | `<leader>sc` | Connection picker |
+| `<leader>sD` | Pick database from server |
 | `<leader>sr` | Run query at cursor |
 | `<leader>sR` | Run all queries |
 | `q` | Close result/float panel |

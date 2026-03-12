@@ -15,7 +15,7 @@ function PG:_connstr()
   local uri = string.format(
     "postgresql://%s:%s@%s:%s/%s",
     c.user, c.password, c.host or "localhost",
-    c.port or 5432, c.dbname
+    c.port or 5432, c.dbname or "postgres" -- dbname optional: defaults to "postgres", pick later via :SqlLensDB
   )
   if c.sslmode then
     uri = uri .. "?sslmode=" .. c.sslmode
@@ -74,6 +74,25 @@ function PG:ping(cb)
     { "psql", self:_connstr(), "-c", "SELECT 1" },
     function(code) cb(code == 0) end
   )
+end
+
+function PG:list_databases(cb)
+  local cmd = {
+    "psql", self:_connstr(),
+    "--no-psqlrc", "-t", "-A",
+    "-c", "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname"
+  }
+  async.job(cmd, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local dbs = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local name = line:match("^%s*(.-)%s*$")
+      if name ~= "" then
+        table.insert(dbs, name)
+      end
+    end
+    cb(nil, dbs)
+  end)
 end
 
 return PG
