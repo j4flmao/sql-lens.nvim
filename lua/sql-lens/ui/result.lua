@@ -371,6 +371,61 @@ local function format_result(raw, sql)
   return output
 end
 
+---Check if output looks like sqlcmd format (has --- separator or SQL Server markers)
+local function is_sqlcmd(raw)
+  return raw:match("\n%-%-") ~= nil
+      or raw:match("SQL Server Execution Times")
+      or raw:match("rows? affected%)")
+end
+
+---Render parsed sqlcmd sections into output
+local function render_sqlcmd_result(output, sections)
+  if #sections.errors > 0 then
+    for _, e in ipairs(sections.errors) do
+      table.insert(output, "  ❌ " .. e)
+    end
+  end
+
+  if #sections.headers > 0 then
+    local widths = calc_widths(sections.headers, sections.rows)
+    local top    = "  " .. border(widths, "┌", "┬", "┐", "─")
+    local hdrsep = "  " .. border(widths, "├", "┼", "┤", "─")
+    local bottom = "  " .. border(widths, "└", "┴", "┘", "─")
+
+    table.insert(output, top)
+    table.insert(output, "  " .. build_row(sections.headers, widths, "│"))
+    table.insert(output, hdrsep)
+    for _, row in ipairs(sections.rows) do
+      table.insert(output, "  " .. build_row(row, widths, "│"))
+    end
+    table.insert(output, bottom)
+  end
+
+  if sections.affected then
+    table.insert(output, "  " .. sections.affected)
+  end
+
+  if #sections.stats > 0 then
+    for _, s in ipairs(sections.stats) do
+      local tbl, scans, logical, physical = s:match(
+        "Table '([^']+)'.- Scan count (%d+), logical reads (%d+), physical reads (%d+)"
+      )
+      if tbl then
+        table.insert(output, string.format(
+          "  📊 Table '%s': scans=%s  logical=%s  physical=%s",
+          tbl, scans, logical, physical
+        ))
+      elseif s:match("CPU time") then
+        table.insert(output, "  ⏱  " .. s)
+      end
+    end
+  end
+
+  if #sections.headers == 0 and #sections.rows == 0 and #sections.errors == 0 and not sections.affected then
+    table.insert(output, "  (OK)")
+  end
+end
+
 ---Format multiple labeled results into output lines
 local function format_multi_results(results)
   local output = {}
@@ -393,6 +448,9 @@ local function format_multi_results(results)
       table.insert(output, "  ❌ " .. tostring(r.err))
     elseif r.output == "" then
       table.insert(output, "  (OK)")
+    elseif is_sqlcmd(r.output) then
+      local sections = parse_output(r.output)
+      render_sqlcmd_result(output, sections)
     elseif is_tsv(r.output) then
       local result_sets = parse_tsv_multi(r.output)
       for _, rs in ipairs(result_sets) do
