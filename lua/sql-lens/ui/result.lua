@@ -161,45 +161,99 @@ local function is_tsv(raw)
   return first and first:find("\t") ~= nil
 end
 
----Parse tab-separated output into headers + rows
-local function parse_tsv(raw)
+---Check if line is a result set footer/status
+local function is_footer(line)
+  return line:match("^%((%d+) rows?%)")
+      or line:match("^(%d+) rows? in set")
+      or line:match("^Query OK")
+      or line:match("^INSERT %d+")
+      or line:match("^UPDATE %d+")
+      or line:match("^DELETE %d+")
+      or line:match("^CREATE ")
+      or line:match("^DROP ")
+      or line:match("^ALTER ")
+end
+
+---Split a tsv line into columns
+local function split_tsv_line(line)
+  local cols = {}
+  for col in (line .. "\t"):gmatch("([^\t]*)\t") do
+    table.insert(cols, col)
+  end
+  return cols
+end
+
+---Parse tab-separated output into multiple result sets
+local function parse_tsv_multi(raw)
   local lines = {}
   for line in raw:gmatch("[^\r\n]+") do
     table.insert(lines, line)
   end
 
-  local headers = {}
-  local rows = {}
-  local footer = nil
+  local result_sets = {}
+  local cur = { headers = {}, rows = {}, footer = nil }
+  local need_header = true
 
-  for i, line in ipairs(lines) do
-    -- psql footer: (5 rows), mysql: 5 rows in set
-    if line:match("^%((%d+) rows?%)") or line:match("^(%d+) rows? in set")
-       or line:match("^Query OK") or line:match("^INSERT") or line:match("^UPDATE")
-       or line:match("^DELETE") or line:match("^CREATE") or line:match("^DROP") then
-      footer = line
-    elseif i == 1 then
-      for col in (line .. "\t"):gmatch("([^\t]*)\t") do
-        table.insert(headers, col)
-      end
+  for _, line in ipairs(lines) do
+    if is_footer(line) then
+      cur.footer = line
+      table.insert(result_sets, cur)
+      cur = { headers = {}, rows = {}, footer = nil }
+      need_header = true
+    elseif need_header then
+      cur.headers = split_tsv_line(line)
+      need_header = false
     else
-      local cols = {}
-      for col in (line .. "\t"):gmatch("([^\t]*)\t") do
-        table.insert(cols, col)
-      end
+      local cols = split_tsv_line(line)
       if #cols > 0 then
-        table.insert(rows, cols)
+        table.insert(cur.rows, cols)
       end
     end
   end
 
-  return headers, rows, footer
+  -- Remaining (no footer, e.g. DDL)
+  if #cur.headers > 0 or #cur.rows > 0 then
+    table.insert(result_sets, cur)
+  end
+
+  return result_sets
 end
 
----Format tab-separated output as a bordered table
+---Render a single result set as a bordered table
+local function render_one_result(output, rs)
+  if #rs.headers == 0 and #rs.rows == 0 then
+    if rs.footer then
+      table.insert(output, "  " .. rs.footer)
+    else
+      table.insert(output, "  (No result set)")
+    end
+    return
+  end
+
+  local widths = calc_widths(rs.headers, rs.rows)
+  local top    = "  " .. border(widths, "┌", "┬", "┐", "─")
+  local hdrsep = "  " .. border(widths, "├", "┼", "┤", "─")
+  local bottom = "  " .. border(widths, "└", "┴", "┘", "─")
+
+  table.insert(output, top)
+  table.insert(output, "  " .. build_row(rs.headers, widths, "│"))
+  table.insert(output, hdrsep)
+
+  for _, row in ipairs(rs.rows) do
+    table.insert(output, "  " .. build_row(row, widths, "│"))
+  end
+
+  table.insert(output, bottom)
+
+  if rs.footer then
+    table.insert(output, "  " .. rs.footer)
+  end
+end
+
+---Format tab-separated output as bordered tables (supports multiple result sets)
 local function format_tsv(raw, sql)
   local output = {}
-  local headers, rows, footer = parse_tsv(raw)
+  local result_sets = parse_tsv_multi(raw)
 
   table.insert(output, "")
   table.insert(output, "  ╔══ SqlLens Result ══╗")
@@ -212,28 +266,15 @@ local function format_tsv(raw, sql)
   table.insert(output, "  SQL: " .. sql_display)
   table.insert(output, "")
 
-  if #headers == 0 and #rows == 0 then
+  if #result_sets == 0 then
     table.insert(output, "  (No result set)")
   else
-    local widths = calc_widths(headers, rows)
-    local top    = "  " .. border(widths, "┌", "┬", "┐", "─")
-    local hdrsep = "  " .. border(widths, "├", "┼", "┤", "─")
-    local bottom = "  " .. border(widths, "└", "┴", "┘", "─")
-
-    table.insert(output, top)
-    table.insert(output, "  " .. build_row(headers, widths, "│"))
-    table.insert(output, hdrsep)
-
-    for _, row in ipairs(rows) do
-      table.insert(output, "  " .. build_row(row, widths, "│"))
+    for i, rs in ipairs(result_sets) do
+      if i > 1 then
+        table.insert(output, "")
+      end
+      render_one_result(output, rs)
     end
-
-    table.insert(output, bottom)
-  end
-
-  if footer then
-    table.insert(output, "")
-    table.insert(output, "  " .. footer)
   end
 
   table.insert(output, "")
