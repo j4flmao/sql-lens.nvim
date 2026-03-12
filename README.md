@@ -247,6 +247,29 @@ require("sql-lens").setup({
 })
 ```
 
+### Warnings & hints (optional)
+
+By default sql-lens.nvim will show performance hints inline, for example:
+
+- Sequential scans on large tables (`Seq Scan → consider adding an index`)
+- High cost / high row count plans
+
+You can tune or disable these warnings:
+
+```lua
+require("sql-lens").setup({
+  -- hide inline warning lines (keep them in detail/report)
+  display = {
+    show_warnings = false,
+  },
+
+  -- disable specific rules
+  thresholds = {
+    seq_scan_warn = false,  -- do not warn on full table scans
+  },
+})
+```
+
 ## 🎮 Commands
 
 | Command | Description |
