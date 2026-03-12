@@ -299,12 +299,60 @@ function M.run_current()
   end)
 end
 
+---Run a list of SQL statements one by one and show labeled results
+local function run_statements(statements, conn)
+  local result_ui = require("sql-lens.ui.result")
+  local total = #statements
+  local results = {}
+  local done = 0
+
+  vim.notify(string.format("SqlLens: Running %d queries...", total), vim.log.levels.INFO)
+
+  for i, stmt in ipairs(statements) do
+    conn:execute(stmt, function(err, stdout)
+      results[i] = { sql = stmt, output = stdout or "", err = err }
+      done = done + 1
+      if done == total then
+        result_ui.show_multi(results)
+      end
+    end)
+  end
+end
+
+---Split raw SQL text into individual statements
+local function split_sql(text)
+  local stmts = {}
+  local current = {}
+  for line in text:gmatch("[^\r\n]+") do
+    local trimmed = line:match("^%s*(.-)%s*$")
+    if trimmed ~= "" and not trimmed:match("^%-%-") then
+      table.insert(current, line)
+      if line:match(";%s*$") then
+        local sql = table.concat(current, "\n"):gsub("%s+$", "")
+        if #sql >= 3 then
+          table.insert(stmts, sql)
+        end
+        current = {}
+      end
+    elseif #current == 0 then
+      -- skip blank/comment between statements
+    end
+  end
+  -- Remaining without trailing semicolon
+  if #current > 0 then
+    local sql = table.concat(current, "\n"):gsub("%s+$", "")
+    if #sql >= 3 then
+      table.insert(stmts, sql)
+    end
+  end
+  return stmts
+end
+
 ---Execute visually selected SQL
 function M.run_selection()
   local result_ui = require("sql-lens.ui.result")
   local bufnr = vim.api.nvim_get_current_buf()
 
-  -- Exit visual mode to update '< and '> marks
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "nx", false)
 
   local start_line = vim.fn.line("'<") - 1
@@ -323,20 +371,20 @@ function M.run_selection()
     return
   end
 
-  local stmt_count = select(2, sql:gsub(";", ";"))
-  local label = stmt_count > 1
-    and string.format("(%d statements)", stmt_count)
-    or sql
-
-  vim.notify(string.format("SqlLens: Running %d statement(s)...", math.max(stmt_count, 1)), vim.log.levels.INFO)
-
-  conn:execute(sql, function(err, stdout)
-    if err then
-      result_ui.show_error(err, label)
-    else
-      result_ui.show(stdout, label)
-    end
-  end)
+  local stmts = split_sql(sql)
+  if #stmts <= 1 then
+    -- Single statement: use normal show
+    vim.notify("SqlLens: Running query...", vim.log.levels.INFO)
+    conn:execute(sql, function(err, stdout)
+      if err then
+        result_ui.show_error(err, sql)
+      else
+        result_ui.show(stdout, sql)
+      end
+    end)
+  else
+    run_statements(stmts, conn)
+  end
 end
 
 ---Generate HTML report for all queries across all connections
@@ -346,7 +394,6 @@ end
 
 ---Execute ALL SQL statements in buffer sequentially
 function M.run_all()
-  local result_ui = require("sql-lens.ui.result")
   local bufnr = vim.api.nvim_get_current_buf()
 
   local statements = extractor.get_all_statements(bufnr)
@@ -361,21 +408,12 @@ function M.run_all()
     return
   end
 
-  local all_sql = {}
+  local stmts = {}
   for _, stmt in ipairs(statements) do
-    table.insert(all_sql, stmt.sql .. ";")
+    table.insert(stmts, stmt.sql)
   end
-  local batch = table.concat(all_sql, "\n")
 
-  vim.notify(string.format("SqlLens: Running %d queries...", #statements), vim.log.levels.INFO)
-
-  conn:execute(batch, function(err, stdout)
-    if err then
-      result_ui.show_error(err, batch)
-    else
-      result_ui.show(stdout, string.format("(%d queries)", #statements))
-    end
-  end)
+  run_statements(stmts, conn)
 end
 
 return M

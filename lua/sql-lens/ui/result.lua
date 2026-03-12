@@ -371,6 +371,98 @@ local function format_result(raw, sql)
   return output
 end
 
+---Format multiple labeled results into output lines
+local function format_multi_results(results)
+  local output = {}
+
+  table.insert(output, "")
+  table.insert(output, string.format("  ╔══ SqlLens Result (%d queries) ══╗", #results))
+
+  for i, r in ipairs(results) do
+    table.insert(output, "")
+    table.insert(output, string.format("  ── Query %d ──", i))
+
+    local sql_display = r.sql:gsub("\n", " "):gsub("%s+", " ")
+    if #sql_display > 90 then
+      sql_display = sql_display:sub(1, 87) .. "..."
+    end
+    table.insert(output, "  SQL: " .. sql_display)
+    table.insert(output, "")
+
+    if r.err then
+      table.insert(output, "  ❌ " .. tostring(r.err))
+    elseif r.output == "" then
+      table.insert(output, "  (OK)")
+    elseif is_tsv(r.output) then
+      local result_sets = parse_tsv_multi(r.output)
+      for _, rs in ipairs(result_sets) do
+        render_one_result(output, rs)
+      end
+    elseif is_preformatted(r.output) then
+      for line in r.output:gmatch("[^\r\n]+") do
+        table.insert(output, "  " .. line)
+      end
+    else
+      for line in r.output:gmatch("[^\r\n]+") do
+        table.insert(output, "  " .. line)
+      end
+    end
+  end
+
+  table.insert(output, "")
+  return output
+end
+
+---Show multiple query results in result window
+function M.show_multi(results)
+  if result_buf and vim.api.nvim_buf_is_valid(result_buf) then
+    -- reuse
+  else
+    result_buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[result_buf].buftype   = "nofile"
+    vim.bo[result_buf].bufhidden = "hide"
+    vim.bo[result_buf].swapfile  = false
+    vim.api.nvim_buf_set_name(result_buf, "[SqlLens Result]")
+  end
+
+  local lines = format_multi_results(results)
+
+  vim.bo[result_buf].modifiable = true
+  vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, lines)
+  vim.bo[result_buf].modifiable = false
+
+  if result_win and vim.api.nvim_win_is_valid(result_win) then
+    vim.api.nvim_set_current_win(result_win)
+    vim.api.nvim_win_set_buf(result_win, result_buf)
+  else
+    local height = math.min(#lines + 1, math.floor(vim.o.lines * 0.45))
+    vim.cmd("botright " .. height .. "split")
+    result_win = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(result_win, result_buf)
+  end
+
+  vim.wo[result_win].number = false
+  vim.wo[result_win].relativenumber = false
+  vim.wo[result_win].signcolumn = "no"
+  vim.wo[result_win].winfixheight = true
+  vim.wo[result_win].cursorline = true
+  vim.wo[result_win].wrap = false
+
+  M._highlight(result_buf, lines)
+
+  local opts = { buffer = result_buf, nowait = true }
+  vim.keymap.set("n", "q", function()
+    if result_win and vim.api.nvim_win_is_valid(result_win) then
+      vim.api.nvim_win_close(result_win, true)
+      result_win = nil
+    end
+  end, opts)
+  vim.keymap.set("n", "<Left>",  function() vim.cmd("normal! zh") end, opts)
+  vim.keymap.set("n", "<Right>", function() vim.cmd("normal! zl") end, opts)
+  vim.keymap.set("n", "H", function() vim.cmd("normal! zH") end, opts)
+  vim.keymap.set("n", "L", function() vim.cmd("normal! zL") end, opts)
+end
+
 ---Show result in a bottom split window
 function M.show(raw, sql)
   if result_buf and vim.api.nvim_buf_is_valid(result_buf) then
@@ -457,6 +549,8 @@ function M._highlight(bufnr, lines)
       if is_header then
         vim.api.nvim_buf_add_highlight(bufnr, ns, "SqlLensWarn", row, 0, -1)
       end
+    elseif line:match("── Query %d+") then
+      vim.api.nvim_buf_add_highlight(bufnr, ns, "SqlLensInfo", row, 0, -1)
     elseif line:match("── Errors") then
       vim.api.nvim_buf_add_highlight(bufnr, ns, "SqlLensError", row, 0, -1)
     elseif line:match("❌") then
