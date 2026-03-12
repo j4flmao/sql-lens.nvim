@@ -30,6 +30,7 @@ function M.setup(opts)
     vim.keymap.set("n", km.connect,     M.connect,         { desc = "SqlLens: connect" })
     if km.run then
       vim.keymap.set("n", km.run, M.run_current, { desc = "SqlLens: run query" })
+      vim.keymap.set("v", km.run, M.run_selection, { desc = "SqlLens: run selection" })
     end
     if km.run_all then
       vim.keymap.set("n", km.run_all, M.run_all, { desc = "SqlLens: run all queries" })
@@ -43,12 +44,16 @@ end
 function M.attach_buffer()
   local bufnr = vim.api.nvim_get_current_buf()
   local cfg   = M._config.trigger
+  local lint_cfg = M._config.lint or {}
+  local lint_enabled = lint_cfg.enable_offline and true or false
 
-  -- Offline lint: runs fast with short debounce (150ms)
-  local lint_debounced = debounce.debounce(
-    function() M._run_lint(bufnr) end,
-    150
-  )
+  local lint_debounced
+  if lint_enabled then
+    lint_debounced = debounce.debounce(
+      function() M._run_lint(bufnr) end,
+      150
+    )
+  end
 
   -- Server explain: runs slower with longer debounce
   local analyze_debounced = debounce.debounce(
@@ -63,7 +68,9 @@ function M.attach_buffer()
       buffer   = bufnr,
       group    = aug,
       callback = function()
-        lint_debounced()      -- fast offline lint
+        if lint_enabled and lint_debounced then
+          lint_debounced()
+        end
         analyze_debounced()   -- slow server explain
       end,
     })
@@ -74,13 +81,18 @@ function M.attach_buffer()
       buffer   = bufnr,
       group    = aug,
       callback = function()
-        M._run_lint(bufnr)
+        if lint_enabled then
+          M._run_lint(bufnr)
+        end
         M._run_all_analysis(bufnr)
       end,
     })
   end
 
   -- Run on first attach
+  if lint_enabled then
+    M._run_lint(bufnr)
+  end
   M._run_all_analysis(bufnr)
 end
 
@@ -131,13 +143,23 @@ function M._run_all_analysis(bufnr)
     return
   end
 
-  local all_errors, statements, errored_stmts = M._collect_lint(bufnr)
+  local lint_cfg = M._config.lint or {}
+  local lint_enabled = lint_cfg.enable_offline and true or false
+
+  local all_errors, statements, errored_stmts
+  if lint_enabled then
+    all_errors, statements, errored_stmts = M._collect_lint(bufnr)
+  else
+    statements = extractor.get_all_statements(bufnr) or {}
+    all_errors = {}
+    errored_stmts = {}
+  end
   if #statements == 0 then return end
 
   vt.clear(bufnr)
 
   -- Render offline lint errors first (visible immediately)
-  if #all_errors > 0 then
+  if lint_enabled and #all_errors > 0 then
     vt.render_lint_errors(bufnr, all_errors)
   end
 
@@ -251,17 +273,19 @@ function M.run_current()
     return
   end
 
-  -- Offline lint first
-  local lint_errors = lint_mod.lint(sql, start_line)
-  local hard_errors = vim.tbl_filter(function(e) return e.level == "error" end, lint_errors)
-  if #hard_errors > 0 then
-    vt.clear(bufnr)
-    vt.render_lint_errors(bufnr, lint_errors)
-    result_ui.show_error(
-      table.concat(vim.tbl_map(function(e) return e.message end, hard_errors), "\n"),
-      sql
-    )
-    return
+  local lint_cfg = M._config.lint or {}
+  if lint_cfg.enable_offline then
+    local lint_errors = lint_mod.lint(sql, start_line)
+    local hard_errors = vim.tbl_filter(function(e) return e.level == "error" end, lint_errors)
+    if #hard_errors > 0 then
+      vt.clear(bufnr)
+      vt.render_lint_errors(bufnr, lint_errors)
+      result_ui.show_error(
+        table.concat(vim.tbl_map(function(e) return e.message end, hard_errors), "\n"),
+        sql
+      )
+      return
+    end
   end
 
   vim.notify("SqlLens: Running query...", vim.log.levels.INFO)
@@ -271,6 +295,46 @@ function M.run_current()
       result_ui.show_error(err, sql)
     else
       result_ui.show(stdout, sql)
+    end
+  end)
+end
+
+---Execute visually selected SQL
+function M.run_selection()
+  local result_ui = require("sql-lens.ui.result")
+  local bufnr = vim.api.nvim_get_current_buf()
+
+  -- Exit visual mode to update '< and '> marks
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "nx", false)
+
+  local start_line = vim.fn.line("'<") - 1
+  local end_line   = vim.fn.line("'>")
+  local lines = vim.api.nvim_buf_get_lines(bufnr, start_line, end_line, false)
+  local sql = table.concat(lines, "\n"):gsub("^%s+", ""):gsub("%s+$", "")
+
+  if #sql < 3 then
+    vim.notify("SqlLens: No SQL in selection", vim.log.levels.WARN)
+    return
+  end
+
+  local conn = conn_mgr.get_active(bufnr)
+  if not conn then
+    vim.notify("SqlLens: No connection — use :SqlLensConnect", vim.log.levels.WARN)
+    return
+  end
+
+  local stmt_count = select(2, sql:gsub(";", ";"))
+  local label = stmt_count > 1
+    and string.format("(%d statements)", stmt_count)
+    or sql
+
+  vim.notify(string.format("SqlLens: Running %d statement(s)...", math.max(stmt_count, 1)), vim.log.levels.INFO)
+
+  conn:execute(sql, function(err, stdout)
+    if err then
+      result_ui.show_error(err, label)
+    else
+      result_ui.show(stdout, label)
     end
   end)
 end
