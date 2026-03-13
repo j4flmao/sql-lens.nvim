@@ -16,7 +16,25 @@ M._disconnected = {} -- bufnr → true if explicitly disconnected
 
 function M.setup(conn_configs)
   M._connections = {}
+
+  -- Merge config connections + saved bookmarks
+  local all_configs = {}
   for _, cfg in ipairs(conn_configs or {}) do
+    table.insert(all_configs, cfg)
+  end
+  local bookmarks = require("sql-lens.bookmarks").load_all()
+  for _, bm in ipairs(bookmarks) do
+    -- Skip if a config connection with same name already exists
+    local exists = false
+    for _, cfg in ipairs(all_configs) do
+      if cfg.name == bm.name then exists = true; break end
+    end
+    if not exists then
+      table.insert(all_configs, bm)
+    end
+  end
+
+  for _, cfg in ipairs(all_configs) do
     local resolved = secrets.resolve_connection(cfg)
     local adapter = adapters[resolved.type]
     if adapter then

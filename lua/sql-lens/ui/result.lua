@@ -2,6 +2,11 @@ local M = {}
 
 local result_buf = nil
 local result_win = nil
+M._last_raw = nil      -- store last raw output for export
+M._last_sql = nil      -- store last sql for export
+M._last_parsed = nil   -- { headers, rows } for pagination/export
+M._page = 1
+M._page_size = 50
 
 ---Check if a line is a SQL Server error/warning message
 local function is_sql_error(line)
@@ -507,22 +512,17 @@ function M.show_multi(results)
   vim.wo[result_win].wrap = false
 
   M._highlight(result_buf, lines)
-
-  local opts = { buffer = result_buf, nowait = true }
-  vim.keymap.set("n", "q", function()
-    if result_win and vim.api.nvim_win_is_valid(result_win) then
-      vim.api.nvim_win_close(result_win, true)
-      result_win = nil
-    end
-  end, opts)
-  vim.keymap.set("n", "<Left>",  function() vim.cmd("normal! zh") end, opts)
-  vim.keymap.set("n", "<Right>", function() vim.cmd("normal! zl") end, opts)
-  vim.keymap.set("n", "H", function() vim.cmd("normal! zH") end, opts)
-  vim.keymap.set("n", "L", function() vim.cmd("normal! zL") end, opts)
+  M._setup_keymaps(result_buf)
 end
 
 ---Show result in a bottom split window
 function M.show(raw, sql)
+  -- Store for export/pagination
+  M._last_raw = raw
+  M._last_sql = sql
+  M._last_parsed = M._extract_data(raw)
+  M._page = 1
+
   if result_buf and vim.api.nvim_buf_is_valid(result_buf) then
     -- reuse
   else
@@ -533,13 +533,35 @@ function M.show(raw, sql)
     vim.api.nvim_buf_set_name(result_buf, "[SqlLens Result]")
   end
 
+  -- If data has many rows, use paginated view
+  if M._last_parsed and #M._last_parsed.rows > M._page_size then
+    -- Open window first, then render page
+    if result_win and vim.api.nvim_win_is_valid(result_win) then
+      vim.api.nvim_set_current_win(result_win)
+      vim.api.nvim_win_set_buf(result_win, result_buf)
+    else
+      local height = math.min(M._page_size + 12, math.floor(vim.o.lines * 0.45))
+      vim.cmd("botright " .. height .. "split")
+      result_win = vim.api.nvim_get_current_win()
+      vim.api.nvim_win_set_buf(result_win, result_buf)
+    end
+    vim.wo[result_win].number = false
+    vim.wo[result_win].relativenumber = false
+    vim.wo[result_win].signcolumn = "no"
+    vim.wo[result_win].winfixheight = true
+    vim.wo[result_win].cursorline = true
+    vim.wo[result_win].wrap = false
+    M._setup_keymaps(result_buf)
+    M._render_page()
+    return
+  end
+
   local lines = format_result(raw, sql)
 
   vim.bo[result_buf].modifiable = true
   vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, lines)
   vim.bo[result_buf].modifiable = false
 
-  -- Open or focus the result window (bottom split)
   if result_win and vim.api.nvim_win_is_valid(result_win) then
     vim.api.nvim_set_current_win(result_win)
     vim.api.nvim_win_set_buf(result_win, result_buf)
@@ -557,29 +579,8 @@ function M.show(raw, sql)
   vim.wo[result_win].cursorline = true
   vim.wo[result_win].wrap = false
 
-  -- Apply highlights
   M._highlight(result_buf, lines)
-
-  -- Keymaps
-  local opts = { buffer = result_buf, nowait = true }
-  vim.keymap.set("n", "q", function()
-    if result_win and vim.api.nvim_win_is_valid(result_win) then
-      vim.api.nvim_win_close(result_win, true)
-      result_win = nil
-    end
-  end, opts)
-  vim.keymap.set("n", "<Left>", function()
-    vim.cmd("normal! zh")
-  end, opts)
-  vim.keymap.set("n", "<Right>", function()
-    vim.cmd("normal! zl")
-  end, opts)
-  vim.keymap.set("n", "H", function()
-    vim.cmd("normal! zH")
-  end, opts)
-  vim.keymap.set("n", "L", function()
-    vim.cmd("normal! zL")
-  end, opts)
+  M._setup_keymaps(result_buf)
 end
 
 ---Apply highlight to result buffer
@@ -688,6 +689,212 @@ function M.close()
   if result_win and vim.api.nvim_win_is_valid(result_win) then
     vim.api.nvim_win_close(result_win, true)
     result_win = nil
+  end
+end
+
+---Extract headers and rows from raw output for export/pagination
+function M._extract_data(raw)
+  if is_tsv(raw) then
+    local sets = parse_tsv_multi(raw)
+    if #sets > 0 then
+      return { headers = sets[1].headers, rows = sets[1].rows }
+    end
+  elseif not is_preformatted(raw) then
+    local sections = parse_output(raw)
+    if #sections.headers > 0 then
+      return { headers = sections.headers, rows = sections.rows }
+    end
+  end
+  return nil
+end
+
+---Export last result to file
+---@param fmt "csv"|"json"|"md"
+function M.export(fmt)
+  if not M._last_raw then
+    vim.notify("SqlLens: No result to export", vim.log.levels.WARN)
+    return
+  end
+
+  local data = M._last_parsed or M._extract_data(M._last_raw)
+  if not data or #data.headers == 0 then
+    vim.notify("SqlLens: No tabular data to export", vim.log.levels.WARN)
+    return
+  end
+
+  local content
+  local ext
+  if fmt == "csv" then
+    ext = "csv"
+    local lines = {}
+    table.insert(lines, table.concat(data.headers, ","))
+    for _, row in ipairs(data.rows) do
+      local escaped = {}
+      for _, col in ipairs(row) do
+        if col:find("[,\"\n]") then
+          table.insert(escaped, '"' .. col:gsub('"', '""') .. '"')
+        else
+          table.insert(escaped, col)
+        end
+      end
+      table.insert(lines, table.concat(escaped, ","))
+    end
+    content = table.concat(lines, "\n")
+  elseif fmt == "json" then
+    ext = "json"
+    local records = {}
+    for _, row in ipairs(data.rows) do
+      local obj = {}
+      for i, h in ipairs(data.headers) do
+        obj[h] = row[i] or ""
+      end
+      table.insert(records, obj)
+    end
+    local ok, json = pcall(vim.json.encode, records)
+    content = ok and json or "[]"
+  elseif fmt == "md" then
+    ext = "md"
+    local lines = {}
+    table.insert(lines, "| " .. table.concat(data.headers, " | ") .. " |")
+    local seps = {}
+    for _ in ipairs(data.headers) do table.insert(seps, "---") end
+    table.insert(lines, "| " .. table.concat(seps, " | ") .. " |")
+    for _, row in ipairs(data.rows) do
+      local cols = {}
+      for i in ipairs(data.headers) do
+        table.insert(cols, row[i] or "")
+      end
+      table.insert(lines, "| " .. table.concat(cols, " | ") .. " |")
+    end
+    content = table.concat(lines, "\n")
+  else
+    vim.notify("SqlLens: Unknown format '" .. fmt .. "' (use csv/json/md)", vim.log.levels.ERROR)
+    return
+  end
+
+  local default = "sql-lens-export." .. ext
+  vim.ui.input({ prompt = "Save to: ", default = default }, function(path)
+    if not path or path == "" then return end
+    local f = io.open(path, "w")
+    if not f then
+      vim.notify("SqlLens: Cannot write to " .. path, vim.log.levels.ERROR)
+      return
+    end
+    f:write(content)
+    f:close()
+    vim.notify("SqlLens: Exported " .. #data.rows .. " rows to " .. path, vim.log.levels.INFO)
+  end)
+end
+
+---Show export format picker
+function M.export_pick()
+  local picker = require("sql-lens.ui.picker")
+  picker.open({ "csv", "json", "md (markdown)" }, {
+    prompt = "Export format",
+    on_select = function(choice)
+      local fmt = choice:match("^(%w+)")
+      M.export(fmt)
+    end,
+  })
+end
+
+---Setup result buffer keymaps (called from show/show_multi)
+function M._setup_keymaps(buf)
+  local opts = { buffer = buf, nowait = true, silent = true }
+
+  vim.keymap.set("n", "q", function()
+    if result_win and vim.api.nvim_win_is_valid(result_win) then
+      vim.api.nvim_win_close(result_win, true)
+      result_win = nil
+    end
+  end, opts)
+  vim.keymap.set("n", "<Left>",  function() vim.cmd("normal! zh") end, opts)
+  vim.keymap.set("n", "<Right>", function() vim.cmd("normal! zl") end, opts)
+  vim.keymap.set("n", "H", function() vim.cmd("normal! zH") end, opts)
+  vim.keymap.set("n", "L", function() vim.cmd("normal! zL") end, opts)
+
+  -- Export keymaps
+  vim.keymap.set("n", "ec", function() M.export("csv") end, opts)
+  vim.keymap.set("n", "ej", function() M.export("json") end, opts)
+  vim.keymap.set("n", "em", function() M.export("md") end, opts)
+  vim.keymap.set("n", "E", function() M.export_pick() end, opts)
+
+  -- Pagination
+  vim.keymap.set("n", "]", function() M._next_page() end, opts)
+  vim.keymap.set("n", "[", function() M._prev_page() end, opts)
+end
+
+---Render current page of paginated result
+function M._render_page()
+  if not M._last_parsed or not M._last_parsed.rows then return end
+
+  local data = M._last_parsed
+  local total_rows = #data.rows
+  local total_pages = math.max(1, math.ceil(total_rows / M._page_size))
+  M._page = math.max(1, math.min(M._page, total_pages))
+
+  local start_idx = (M._page - 1) * M._page_size + 1
+  local end_idx = math.min(M._page * M._page_size, total_rows)
+
+  local page_rows = {}
+  for i = start_idx, end_idx do
+    table.insert(page_rows, data.rows[i])
+  end
+
+  local output = {}
+  table.insert(output, "")
+  table.insert(output, "  ╔══ SqlLens Result ══╗")
+  table.insert(output, "")
+
+  if M._last_sql then
+    local sql_display = M._last_sql:gsub("\n", " "):gsub("%s+", " ")
+    if #sql_display > 90 then sql_display = sql_display:sub(1, 87) .. "..." end
+    table.insert(output, "  SQL: " .. sql_display)
+    table.insert(output, "")
+  end
+
+  -- Page info
+  local page_info = string.format("  Page %d/%d (%d-%d of %d rows)  [/] prev/next  E export",
+    M._page, total_pages, start_idx, end_idx, total_rows)
+  table.insert(output, page_info)
+  table.insert(output, "")
+
+  -- Build table
+  local widths = calc_widths(data.headers, page_rows)
+  table.insert(output, "  " .. border(widths, "┌", "┬", "┐", "─"))
+  table.insert(output, "  " .. build_row(data.headers, widths, "│"))
+  table.insert(output, "  " .. border(widths, "├", "┼", "┤", "─"))
+  for _, row in ipairs(page_rows) do
+    table.insert(output, "  " .. build_row(row, widths, "│"))
+  end
+  table.insert(output, "  " .. border(widths, "└", "┴", "┘", "─"))
+
+  table.insert(output, "")
+  table.insert(output, string.format("  %d total rows", total_rows))
+  table.insert(output, "")
+
+  if result_buf and vim.api.nvim_buf_is_valid(result_buf) then
+    vim.bo[result_buf].modifiable = true
+    vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, output)
+    vim.bo[result_buf].modifiable = false
+    M._highlight(result_buf, output)
+  end
+end
+
+function M._next_page()
+  if not M._last_parsed then return end
+  local total_pages = math.ceil(#M._last_parsed.rows / M._page_size)
+  if M._page < total_pages then
+    M._page = M._page + 1
+    M._render_page()
+  end
+end
+
+function M._prev_page()
+  if not M._last_parsed then return end
+  if M._page > 1 then
+    M._page = M._page - 1
+    M._render_page()
   end
 end
 

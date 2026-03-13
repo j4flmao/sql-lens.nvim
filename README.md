@@ -18,6 +18,10 @@ Real-time SQL query plan analyzer — see EXPLAIN output inline + execute querie
 - 📋 Table Explorer: browse tables/collections and generate preview queries
 - 🕐 Query History: re-run previous queries from a searchable picker
 - 🔤 Auto-completion: table & column names via nvim-cmp integration
+- 📤 Export Results: save query results to CSV, JSON, or Markdown
+- 📄 Result Pagination: large results split into pages with `[`/`]` navigation
+- 🔖 Saved Connections: bookmark connections to JSON file (persist across sessions)
+- 📊 Statusline: lualine component showing current connection + database
 
 ## 📦 Installation
 
@@ -318,6 +322,8 @@ require("sql-lens").setup({
 | `:SqlLensDB` | Pick database from server (dynamic) |
 | `:SqlLensTables` | Explore tables/collections in current database |
 | `:SqlLensHistory` | Browse and re-run previous queries |
+| `:SqlLensSaveConn` | Save current connection as bookmark |
+| `:SqlLensExport {fmt}` | Export results to csv/json/md |
 | `:SqlLensUse {name}` | Switch connection by name |
 
 ## ⌨️ Default Keymaps
@@ -334,6 +340,9 @@ require("sql-lens").setup({
 | `<leader>st` | Explore tables/collections |
 | `<leader>sh` | Query history |
 | `q` | Close result/float panel |
+| `E` | Export result (picker) |
+| `ec` / `ej` / `em` | Export to CSV / JSON / Markdown |
+| `]` / `[` | Next / previous page (large results) |
 
 ## 🔧 Requirements
 
@@ -359,6 +368,35 @@ require("sql-lens").setup({
 7. `<leader>se` — Refresh explain plan (after creating indexes)
 8. `<leader>sd` — View detailed plan tree + IO stats
 9. Start typing SQL → nvim-cmp suggests table and column names
+10. `E` — Export results to CSV/JSON/Markdown
+11. `]`/`[` — Navigate pages if result has 50+ rows
+
+## 📊 Statusline (lualine)
+
+Add the sql-lens component to your lualine config:
+
+```lua
+require("lualine").setup({
+  sections = {
+    lualine_x = {
+      require("sql-lens.statusline").lualine,
+    },
+  },
+})
+```
+
+Shows ` connection/database` in the statusline when editing SQL files.
+
+## 🔖 Saved Connections (Bookmarks)
+
+Save frequently used connections so you don't have to configure them every time:
+
+```vim
+:SqlLensSaveConn     " Save current active connection as a bookmark
+```
+
+Bookmarks are stored in `~/.local/share/nvim/sql-lens-bookmarks.json` and
+automatically loaded alongside your config connections on startup.
 
 ## License
 

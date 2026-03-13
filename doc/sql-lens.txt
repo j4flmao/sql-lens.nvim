@@ -98,6 +98,21 @@ COMMANDS                                                   *sql-lens-commands*
     Select a query to re-run it on the active connection.
     History is persisted to disk across Neovim sessions.
 
+:SqlLensSaveConn                                          *:SqlLensSaveConn*
+    Save the current active connection as a bookmark.
+    Bookmarks are stored in ~/.local/share/nvim/sql-lens-bookmarks.json
+    and auto-loaded alongside config connections on startup.
+
+:SqlLensExport {fmt}                                      *:SqlLensExport*
+    Export the last query result to a file.
+    Supported formats: csv, json, md (markdown).
+
+Result buffer keymaps (inside the result split):
+    E           Open export format picker
+    ec / ej / em    Export to CSV / JSON / Markdown
+    ] / [       Next / previous page (for large results)
+    q           Close result panel
+
 ==============================================================================
 CONFIGURATION                                               *sql-lens-config*
 

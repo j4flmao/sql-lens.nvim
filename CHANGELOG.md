@@ -17,6 +17,10 @@
   - Configurable `max_entries` (200) and `max_days` (7) auto-cleanup
 - Auto-completion: nvim-cmp source for table and column names (`sql_lens`)
 - `list_tables()` and `list_columns()` methods for all adapters
+- Export Results: `E` picker or `ec`/`ej`/`em` to export to CSV/JSON/Markdown
+- Result Pagination: `]`/`[` to navigate pages (50 rows per page)
+- Saved Connections (bookmarks): `:SqlLensSaveConn` saves to JSON, auto-loaded on startup
+- Lualine statusline component: `require("sql-lens.statusline").lualine`
 
 ### Changed
 - PostgreSQL `_connstr()` defaults to `"postgres"` database when `dbname` is omitted
