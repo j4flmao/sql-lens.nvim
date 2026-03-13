@@ -91,6 +91,11 @@ function M.pick_and_connect()
       local bufnr = vim.api.nvim_get_current_buf()
       M._active[bufnr] = choice
       M._disconnected[bufnr] = nil
+      -- Save file → connection binding
+      local filepath = vim.api.nvim_buf_get_name(bufnr)
+      if filepath and filepath ~= "" then
+        require("sql-lens.bookmarks").bind_file(filepath, choice.config.name, choice.config.dbname)
+      end
       if not choice.config.dbname or choice.config.dbname == "" then
         vim.notify("SqlLens: Connected to '" .. choice.config.name .. "' (no database selected)", vim.log.levels.INFO)
         vim.defer_fn(function() M.pick_database() end, 100)
@@ -132,6 +137,11 @@ function M.pick_database()
       on_select = function(choice)
         conn.config.dbname = choice
         require("sql-lens.completion").invalidate()
+        -- Update file binding with new database
+        local filepath = vim.api.nvim_buf_get_name(bufnr)
+        if filepath and filepath ~= "" then
+          require("sql-lens.bookmarks").bind_file(filepath, conn.config.name, choice)
+        end
         vim.notify("SqlLens: Switched to database '" .. choice .. "'", vim.log.levels.INFO)
       end,
     })

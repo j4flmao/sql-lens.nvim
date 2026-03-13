@@ -64,9 +64,47 @@ function M.pick_and_save()
     return
   end
 
-  -- Save current connection config (without sensitive resolve)
   local cfg = vim.deepcopy(conn.config)
   M.save(cfg)
+
+  -- Also save file → connection mapping
+  local filepath = vim.api.nvim_buf_get_name(bufnr)
+  if filepath and filepath ~= "" then
+    M.bind_file(filepath, cfg.name, cfg.dbname)
+  end
+end
+
+-- File → connection mapping
+M._bindings_file = vim.fn.stdpath("data") .. "/sql-lens-file-bindings.json"
+
+function M._read_bindings()
+  local f = io.open(M._bindings_file, "r")
+  if not f then return {} end
+  local content = f:read("*a")
+  f:close()
+  local ok, data = pcall(vim.json.decode, content)
+  if ok and type(data) == "table" then return data end
+  return {}
+end
+
+function M._write_bindings(bindings)
+  local ok, json = pcall(vim.json.encode, bindings)
+  if not ok then return end
+  local f = io.open(M._bindings_file, "w")
+  if not f then return end
+  f:write(json)
+  f:close()
+end
+
+function M.bind_file(filepath, conn_name, dbname)
+  local bindings = M._read_bindings()
+  bindings[filepath] = { connection = conn_name, database = dbname or "" }
+  M._write_bindings(bindings)
+end
+
+function M.get_binding(filepath)
+  local bindings = M._read_bindings()
+  return bindings[filepath]
 end
 
 return M

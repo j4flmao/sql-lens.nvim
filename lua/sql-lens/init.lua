@@ -65,6 +65,27 @@ function M.attach_buffer()
   local lint_cfg = M._config.lint or {}
   local lint_enabled = lint_cfg.enable_offline and true or false
 
+  -- Auto-restore saved file → connection binding
+  if not conn_mgr.get_active(bufnr) then
+    local filepath = vim.api.nvim_buf_get_name(bufnr)
+    if filepath and filepath ~= "" then
+      local binding = require("sql-lens.bookmarks").get_binding(filepath)
+      if binding then
+        -- Find matching connection and set active
+        for _, conn in ipairs(conn_mgr._connections) do
+          if conn.config.name == binding.connection then
+            conn_mgr._active[bufnr] = conn
+            conn_mgr._disconnected[bufnr] = nil
+            if binding.database and binding.database ~= "" then
+              conn.config.dbname = binding.database
+            end
+            break
+          end
+        end
+      end
+    end
+  end
+
   local lint_debounced
   if lint_enabled then
     lint_debounced = debounce.debounce(
