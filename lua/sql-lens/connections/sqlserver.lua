@@ -139,6 +139,45 @@ function MSSQL:ping(cb)
   async.job(args, function(code) cb(code == 0) end)
 end
 
+function MSSQL:preview_query(tbl)
+  return "SELECT TOP 50 * FROM [" .. tbl .. "];"
+end
+
+function MSSQL:list_tables(cb)
+  local args = self:_args()
+  vim.list_extend(args, {
+    "-h", "-1", "-W", "-Q",
+    "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME",
+  })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local tables = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local name = line:match("^%s*(.-)%s*$")
+      if name ~= "" and not name:match("^%-%-") then table.insert(tables, name) end
+    end
+    cb(nil, tables)
+  end)
+end
+
+function MSSQL:list_columns(tbl, cb)
+  local args = self:_args()
+  local sql = string.format(
+    "SELECT COLUMN_NAME + ' ' + DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '%s' ORDER BY ORDINAL_POSITION",
+    tbl
+  )
+  vim.list_extend(args, { "-h", "-1", "-W", "-Q", sql })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local cols = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local name = line:match("^%s*(.-)%s*$")
+      if name ~= "" and not name:match("^%-%-") then table.insert(cols, name) end
+    end
+    cb(nil, cols)
+  end)
+end
+
 function MSSQL:list_databases(cb)
   local args = self:_args()
   vim.list_extend(args, { "-h", "-1", "-W", "-Q", "SELECT name FROM sys.databases ORDER BY name" })

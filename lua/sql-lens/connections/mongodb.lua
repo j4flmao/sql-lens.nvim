@@ -75,6 +75,42 @@ function MongoDB:explain(js, cb)
   end)
 end
 
+function MongoDB:preview_query(collection)
+  return "db." .. collection .. ".find().limit(50)"
+end
+
+function MongoDB:list_tables(cb)
+  local args = self:_args()
+  vim.list_extend(args, { "--eval", "db.getCollectionNames().forEach(c => print(c))" })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local tables = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local name = line:match("^%s*(.-)%s*$")
+      if name ~= "" then table.insert(tables, name) end
+    end
+    cb(nil, tables)
+  end)
+end
+
+function MongoDB:list_columns(collection, cb)
+  local args = self:_args()
+  local js = string.format(
+    "var doc = db.%s.findOne(); if(doc){Object.keys(doc).forEach(k => print(k + ' ' + typeof doc[k]))}",
+    collection
+  )
+  vim.list_extend(args, { "--eval", js })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local cols = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local name = line:match("^%s*(.-)%s*$")
+      if name ~= "" then table.insert(cols, name) end
+    end
+    cb(nil, cols)
+  end)
+end
+
 function MongoDB:list_databases(cb)
   local args = self:_args()
   vim.list_extend(args, {

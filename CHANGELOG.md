@@ -9,6 +9,14 @@
 - `list_databases()` method for MySQL adapter (using `SHOW DATABASES`)
 - Auto-prompt database picker when connecting without `dbname`
 - MongoDB adapter with `mongosh` support (execute, ping, list_databases, explain)
+- Table Explorer: `:SqlLensTables` / `<leader>st` — browse tables/collections, generate preview queries
+- Query History: `:SqlLensHistory` / `<leader>sh` — browse and re-run previous queries
+  - Persisted to JSON file across sessions (`~/.local/share/nvim/sql-lens-history.json`)
+  - `<Tab>` cycles filter: current conn+db → current conn (all dbs) → all connections
+  - Preview pane shows full SQL of selected entry
+  - Configurable `max_entries` (200) and `max_days` (7) auto-cleanup
+- Auto-completion: nvim-cmp source for table and column names (`sql_lens`)
+- `list_tables()` and `list_columns()` methods for all adapters
 
 ### Changed
 - PostgreSQL `_connstr()` defaults to `"postgres"` database when `dbname` is omitted

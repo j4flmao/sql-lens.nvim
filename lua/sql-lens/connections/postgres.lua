@@ -76,6 +76,40 @@ function PG:ping(cb)
   )
 end
 
+function PG:list_tables(cb)
+  local cmd = {
+    "psql", self:_connstr(),
+    "--no-psqlrc", "-t", "-A",
+    "-c", "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename",
+  }
+  async.job(cmd, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local tables = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local name = line:match("^%s*(.-)%s*$")
+      if name ~= "" then table.insert(tables, name) end
+    end
+    cb(nil, tables)
+  end)
+end
+
+function PG:list_columns(tbl, cb)
+  local sql = string.format(
+    "SELECT column_name || ' ' || data_type FROM information_schema.columns WHERE table_name = '%s' ORDER BY ordinal_position",
+    tbl
+  )
+  local cmd = { "psql", self:_connstr(), "--no-psqlrc", "-t", "-A", "-c", sql }
+  async.job(cmd, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local cols = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local name = line:match("^%s*(.-)%s*$")
+      if name ~= "" then table.insert(cols, name) end
+    end
+    cb(nil, cols)
+  end)
+end
+
 function PG:list_databases(cb)
   local cmd = {
     "psql", self:_connstr(),

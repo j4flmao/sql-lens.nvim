@@ -15,6 +15,9 @@ Real-time SQL query plan analyzer — see EXPLAIN output inline + execute querie
 - 📊 Performance stats: execution time, CPU, logical reads, IO per table
 - 🔐 Credentials via `.env` files or environment variables
 - 🔑 SQL Server Windows Auth (trusted connection) support
+- 📋 Table Explorer: browse tables/collections and generate preview queries
+- 🕐 Query History: re-run previous queries from a searchable picker
+- 🔤 Auto-completion: table & column names via nvim-cmp integration
 
 ## 📦 Installation
 
@@ -248,6 +251,12 @@ require("sql-lens").setup({
     seq_scan_warn = true,    -- always warn on full table scan
   },
 
+  -- Query history
+  history = {
+    max_entries = 200,   -- max entries to keep
+    max_days    = 7,     -- auto-delete entries older than N days
+  },
+
   -- Connections (see Connection Setup section)
   connections = {},
 
@@ -266,6 +275,8 @@ require("sql-lens").setup({
     run         = "<leader>sr",   -- run query at cursor
     run_all     = "<leader>sR",   -- run all queries
     pick_db     = "<leader>sD",   -- pick database from server
+    explore     = "<leader>st",   -- explore tables/collections
+    history     = "<leader>sh",   -- query history
   },
 })
 ```
@@ -305,6 +316,8 @@ require("sql-lens").setup({
 | `:SqlLensRun` | Run query at cursor and show result |
 | `:SqlLensRunAll` | Run all queries in the file |
 | `:SqlLensDB` | Pick database from server (dynamic) |
+| `:SqlLensTables` | Explore tables/collections in current database |
+| `:SqlLensHistory` | Browse and re-run previous queries |
 | `:SqlLensUse {name}` | Switch connection by name |
 
 ## ⌨️ Default Keymaps
@@ -318,6 +331,8 @@ require("sql-lens").setup({
 | `<leader>sD` | Pick database from server |
 | `<leader>sr` | Run query at cursor |
 | `<leader>sR` | Run all queries |
+| `<leader>st` | Explore tables/collections |
+| `<leader>sh` | Query history |
 | `q` | Close result/float panel |
 
 ## 🔧 Requirements
@@ -336,10 +351,14 @@ require("sql-lens").setup({
 ## 📖 Workflow Demo
 
 1. Open a `.sql` file → plugin analyzes all queries and shows inline cost
-2. `<leader>sr` — Run the query at cursor, show table result + stats
-3. `<leader>se` — Refresh explain plan (after creating indexes)
-4. `<leader>sd` — View detailed plan tree + IO stats
-5. `<leader>sc` — Switch to another connection
+2. `<leader>sc` — Connect to a database server
+3. `<leader>sD` — Pick a database (or auto-prompted if no `dbname`)
+4. `<leader>st` — Browse tables, select one → generates `SELECT * FROM ... LIMIT 50`
+5. `<leader>sr` — Run the query at cursor, show table result + stats
+6. `<leader>sh` — Browse query history, select to re-run
+7. `<leader>se` — Refresh explain plan (after creating indexes)
+8. `<leader>sd` — View detailed plan tree + IO stats
+9. Start typing SQL → nvim-cmp suggests table and column names
 
 ## License
 

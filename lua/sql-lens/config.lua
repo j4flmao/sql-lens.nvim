@@ -29,6 +29,10 @@ M.defaults = {
   lint = {
     enable_offline = false,
   },
+  history = {
+    max_entries = 200,   -- max number of entries to keep
+    max_days    = 7,     -- auto-delete entries older than N days
+  },
   connections = {},
   secrets = {
     use_env    = true,
@@ -43,6 +47,8 @@ M.defaults = {
     run_all       = "<leader>sR",
     report        = "<leader>sH",
     pick_db       = "<leader>sD",
+    explore       = "<leader>st",
+    history       = "<leader>sh",
   },
 }
 

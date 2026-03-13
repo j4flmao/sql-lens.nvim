@@ -22,6 +22,10 @@ Features:
 - PostgreSQL, MySQL, SQL Server, SQLite, MongoDB support
 - Smart hints: missing indexes, high cost, row estimate drift
 - Inline virtual text + floating detail window
+- Dynamic database selection (dbname optional)
+- Table Explorer: browse tables/collections
+- Query History: persistent, filterable by connection
+- Auto-completion: table & column names via nvim-cmp
 - .env credential loading
 
 ==============================================================================
@@ -79,6 +83,21 @@ COMMANDS                                                   *sql-lens-commands*
 :SqlLensReport                                              *:SqlLensReport*
     Generate HTML report for all queries.
 
+:SqlLensTables                                            *:SqlLensTables*
+    Browse tables/collections in the current database.
+    Select a table to generate a preview query
+    (e.g. SELECT * FROM table LIMIT 50).
+
+:SqlLensHistory                                            *:SqlLensHistory*
+    Browse previously executed queries with preview pane.
+    Default filter: current connection + database.
+    Press <Tab> to cycle filter modes:
+      1. Current connection + database
+      2. Current connection (all databases)
+      3. All connections
+    Select a query to re-run it on the active connection.
+    History is persisted to disk across Neovim sessions.
+
 ==============================================================================
 CONFIGURATION                                               *sql-lens-config*
 
@@ -103,6 +122,10 @@ Default configuration: >lua
       cost_error    = 10000,
       seq_scan_warn = true,
     },
+    history = {
+      max_entries = 200,   -- max entries to keep
+      max_days    = 7,     -- auto-delete after N days
+    },
     keymaps = {
       toggle      = "<leader>sq",
       explain     = "<leader>se",
@@ -111,6 +134,8 @@ Default configuration: >lua
       run         = "<leader>sr",
       run_all     = "<leader>sR",
       pick_db     = "<leader>sD",
+      explore     = "<leader>st",
+      history     = "<leader>sh",
       report      = "<leader>sH",
     },
   }

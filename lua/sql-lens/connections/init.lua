@@ -113,7 +113,44 @@ function M.pick_database()
       prompt = "Database (" .. conn.config.name .. ")",
       on_select = function(choice)
         conn.config.dbname = choice
+        require("sql-lens.completion").invalidate()
         vim.notify("SqlLens: Switched to database '" .. choice .. "'", vim.log.levels.INFO)
+      end,
+    })
+  end)
+end
+
+function M.explore_tables()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local conn = M.get_active(bufnr)
+  if not conn then
+    vim.notify("SqlLens: No active connection — use :SqlLensConnect first", vim.log.levels.WARN)
+    return
+  end
+
+  vim.notify("SqlLens: Fetching tables...", vim.log.levels.INFO)
+
+  conn:list_tables(function(err, tables)
+    if err then
+      vim.notify("SqlLens: " .. tostring(err), vim.log.levels.ERROR)
+      return
+    end
+    if #tables == 0 then
+      vim.notify("SqlLens: No tables found", vim.log.levels.WARN)
+      return
+    end
+
+    local picker = require("sql-lens.ui.picker")
+    local label = conn.type == "mongodb" and "Collections" or "Tables"
+    picker.open(tables, {
+      prompt = label .. " (" .. (conn.config.dbname or conn.config.name) .. ")",
+      on_select = function(tbl)
+        local query = conn:preview_query(tbl)
+        -- Insert at cursor position
+        local row = vim.api.nvim_win_get_cursor(0)[1]
+        vim.api.nvim_buf_set_lines(bufnr, row, row, false, { query })
+        vim.api.nvim_win_set_cursor(0, { row + 1, 0 })
+        vim.notify("SqlLens: Inserted query for '" .. tbl .. "'", vim.log.levels.INFO)
       end,
     })
   end)

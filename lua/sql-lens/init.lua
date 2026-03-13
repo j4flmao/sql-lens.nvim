@@ -41,7 +41,22 @@ function M.setup(opts)
     if km.pick_db then
       vim.keymap.set("n", km.pick_db, M.pick_database, { desc = "SqlLens: pick database" })
     end
+    if km.explore then
+      vim.keymap.set("n", km.explore, M.explore_tables, { desc = "SqlLens: explore tables" })
+    end
+    if km.history then
+      vim.keymap.set("n", km.history, M.show_history, { desc = "SqlLens: query history" })
+    end
   end
+
+  -- Apply history config
+  local hist_cfg = M._config.history or {}
+  local history = require("sql-lens.history")
+  if hist_cfg.max_entries then history._max = hist_cfg.max_entries end
+  if hist_cfg.max_days then history._max_days = hist_cfg.max_days end
+
+  -- Register nvim-cmp source if available
+  require("sql-lens.completion").setup()
 end
 
 function M.attach_buffer()
@@ -297,6 +312,9 @@ function M.run_current()
 
   vim.notify("SqlLens: Running query...", vim.log.levels.INFO)
 
+  local history = require("sql-lens.history")
+  history.add(sql, conn)
+
   conn:execute(sql, function(err, stdout)
     if err then
       result_ui.show_error(err, sql)
@@ -314,6 +332,11 @@ local function run_statements(statements, conn)
   local done = 0
 
   vim.notify(string.format("SqlLens: Running %d queries...", total), vim.log.levels.INFO)
+
+  local history = require("sql-lens.history")
+  for _, stmt in ipairs(statements) do
+    history.add(stmt, conn)
+  end
 
   for i, stmt in ipairs(statements) do
     conn:execute(stmt, function(err, stdout)
@@ -421,6 +444,95 @@ function M.run_all()
   end
 
   run_statements(stmts, conn)
+end
+
+function M.explore_tables()
+  conn_mgr.explore_tables()
+end
+
+-- Filter modes: 1 = conn+db, 2 = conn (all dbs), 3 = all connections
+function M.show_history(mode)
+  mode = mode or 1
+  local history = require("sql-lens.history")
+  local picker = require("sql-lens.ui.picker")
+  local bufnr = vim.api.nvim_get_current_buf()
+  local conn = conn_mgr.get_active(bufnr)
+
+  local conn_name = conn and conn.config.name or nil
+  local dbname = conn and conn.config.dbname or nil
+
+  -- If no connection, force mode 3
+  if not conn_name then mode = 3 end
+
+  local entries, title
+  if mode == 1 then
+    entries = history.get_by_connection(conn_name, dbname)
+    local suffix = conn_name
+    if dbname and dbname ~= "" then suffix = suffix .. "/" .. dbname end
+    title = suffix .. " — <Tab> ▸ all dbs"
+    -- Fallback to mode 2 if empty
+    if #entries == 0 then
+      mode = 2
+      entries = history.get_by_connection(conn_name, nil)
+      title = conn_name .. " (all dbs) — <Tab> ▸ all conns"
+    end
+    -- Fallback to mode 3 if still empty
+    if #entries == 0 then
+      mode = 3
+      entries = history.get_all()
+      title = "All connections"
+    end
+  elseif mode == 2 then
+    entries = history.get_by_connection(conn_name, nil)
+    title = conn_name .. " (all dbs) — <Tab> ▸ all conns"
+    if #entries == 0 then
+      mode = 3
+      entries = history.get_all()
+      title = "All connections"
+    end
+  else
+    entries = history.get_all()
+    title = "All connections — <Tab> ▸ current"
+  end
+
+  if #entries == 0 then
+    vim.notify("SqlLens: No query history", vim.log.levels.INFO)
+    return
+  end
+
+  local labels, details = history.build_display(entries)
+
+  picker.open(labels, {
+    prompt = title,
+    details = details,
+    on_tab = function()
+      -- Cycle: 1 → 2 → 3 → 1
+      local next_mode = (mode % 3) + 1
+      M.show_history(next_mode)
+    end,
+    on_select = function(label)
+      for i, l in ipairs(labels) do
+        if l == label then
+          local entry = entries[i]
+          if not conn then
+            vim.notify("SqlLens: No connection — use :SqlLensConnect", vim.log.levels.WARN)
+            return
+          end
+          local result_ui = require("sql-lens.ui.result")
+          vim.notify("SqlLens: Re-running query...", vim.log.levels.INFO)
+          history.add(entry.sql, conn)
+          conn:execute(entry.sql, function(err, stdout)
+            if err then
+              result_ui.show_error(err, entry.sql)
+            else
+              result_ui.show(stdout, entry.sql)
+            end
+          end)
+          return
+        end
+      end
+    end,
+  })
 end
 
 return M

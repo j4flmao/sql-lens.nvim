@@ -63,6 +63,36 @@ function MySQL:ping(cb)
   async.job(args, function(code) cb(code == 0) end)
 end
 
+function MySQL:list_tables(cb)
+  local args = self:_args()
+  vim.list_extend(args, { "--silent", "--raw", "-e", "SHOW TABLES" })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local tables = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local name = line:match("^%s*(.-)%s*$")
+      if name ~= "" then table.insert(tables, name) end
+    end
+    cb(nil, tables)
+  end)
+end
+
+function MySQL:list_columns(tbl, cb)
+  local args = self:_args()
+  vim.list_extend(args, { "--silent", "--raw", "-e", "SHOW COLUMNS FROM " .. tbl })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local cols = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local parts = vim.split(line, "\t")
+      if parts[1] and parts[1] ~= "" then
+        table.insert(cols, parts[1] .. " " .. (parts[2] or ""))
+      end
+    end
+    cb(nil, cols)
+  end)
+end
+
 function MySQL:list_databases(cb)
   local args = self:_args()
   vim.list_extend(args, { "--silent", "--raw", "-e", "SHOW DATABASES" })

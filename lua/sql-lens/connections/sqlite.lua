@@ -31,4 +31,36 @@ function SQLite:explain(sql, cb)
   )
 end
 
+function SQLite:list_tables(cb)
+  async.job(
+    { "sqlite3", self.config.path, "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;" },
+    function(code, stdout, stderr)
+      if code ~= 0 then return cb(stderr or "error", {}) end
+      local tables = {}
+      for line in stdout:gmatch("[^\r\n]+") do
+        local name = line:match("^%s*(.-)%s*$")
+        if name ~= "" then table.insert(tables, name) end
+      end
+      cb(nil, tables)
+    end
+  )
+end
+
+function SQLite:list_columns(tbl, cb)
+  async.job(
+    { "sqlite3", self.config.path, "PRAGMA table_info(" .. tbl .. ");" },
+    function(code, stdout, stderr)
+      if code ~= 0 then return cb(stderr or "error", {}) end
+      local cols = {}
+      for line in stdout:gmatch("[^\r\n]+") do
+        local parts = vim.split(line, "|")
+        if parts[2] and parts[2] ~= "" then
+          table.insert(cols, parts[2] .. " " .. (parts[3] or ""))
+        end
+      end
+      cb(nil, cols)
+    end
+  )
+end
+
 return SQLite
