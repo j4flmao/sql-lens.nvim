@@ -88,7 +88,7 @@ function M.compare(conn_a, conn_b, cb)
   end)
 end
 
----Show schema diff in a new buffer
+---Show schema diff in a new buffer with migration SQL
 function M.show(diff)
   local lines = {}
 
@@ -99,42 +99,98 @@ function M.show(diff)
   table.insert(lines, "  B: " .. diff.label_b)
   table.insert(lines, "")
 
+  local total_changes = 0
+
+  -- Tables only in A
   if #diff.only_a > 0 then
-    table.insert(lines, "  ── Only in A ──")
+    table.insert(lines, "  ── Tables only in A (" .. #diff.only_a .. ") ──")
     for _, t in ipairs(diff.only_a) do
       table.insert(lines, "  − " .. t)
     end
     table.insert(lines, "")
+    total_changes = total_changes + #diff.only_a
   end
 
+  -- Tables only in B
   if #diff.only_b > 0 then
-    table.insert(lines, "  ── Only in B ──")
+    table.insert(lines, "  ── Tables only in B (" .. #diff.only_b .. ") ──")
     for _, t in ipairs(diff.only_b) do
       table.insert(lines, "  + " .. t)
     end
     table.insert(lines, "")
+    total_changes = total_changes + #diff.only_b
   end
 
+  -- Column differences
   if #diff.both > 0 then
     table.insert(lines, "  ── Column Differences ──")
     for _, td in ipairs(diff.both) do
       table.insert(lines, "")
-      table.insert(lines, "  Table: " .. td.table)
+      table.insert(lines, "  📋 " .. td.table)
+
+      -- Columns only in A
       for _, c in ipairs(td.cols_only_a) do
         table.insert(lines, "    − " .. c)
+        total_changes = total_changes + 1
       end
+      -- Columns only in B
       for _, c in ipairs(td.cols_only_b) do
         table.insert(lines, "    + " .. c)
+        total_changes = total_changes + 1
+      end
+      -- Columns with type differences
+      for _, c in ipairs(td.cols_both or {}) do
+        if c.a ~= c.b then
+          table.insert(lines, "    ~ " .. c.name .. ": " .. c.a .. " → " .. c.b)
+          total_changes = total_changes + 1
+        end
       end
     end
     table.insert(lines, "")
   end
 
-  if #diff.only_a == 0 and #diff.only_b == 0 and #diff.both == 0 then
-    table.insert(lines, "  ✓ Schemas are identical")
-    table.insert(lines, "")
+  -- Migration SQL suggestions
+  local has_migration = false
+  if #diff.only_b > 0 or #diff.both > 0 then
+    for _, td in ipairs(diff.both) do
+      if #td.cols_only_b > 0 then
+        if not has_migration then
+          table.insert(lines, "  ── Migration SQL (A → B) ──")
+          table.insert(lines, "")
+          has_migration = true
+        end
+        for _, c in ipairs(td.cols_only_b) do
+          local col_name = c:match("^(%S+)")
+          local col_type = c:match("%s+(.+)$") or "VARCHAR(255)"
+          table.insert(lines, string.format("  ALTER TABLE %s ADD %s %s;", td.table, col_name, col_type:upper()))
+        end
+      end
+      if #td.cols_only_a > 0 then
+        if not has_migration then
+          table.insert(lines, "  ── Migration SQL (A → B) ──")
+          table.insert(lines, "")
+          has_migration = true
+        end
+        for _, c in ipairs(td.cols_only_a) do
+          local col_name = c:match("^(%S+)")
+          table.insert(lines, string.format("  -- ALTER TABLE %s DROP COLUMN %s;  -- ⚠ destructive", td.table, col_name))
+        end
+      end
+    end
+    if has_migration then
+      table.insert(lines, "")
+    end
   end
 
+  -- Summary
+  if total_changes == 0 then
+    table.insert(lines, "  ✓ Schemas are identical")
+  else
+    table.insert(lines, string.format("  ⚠ %d difference%s found", total_changes, total_changes > 1 and "s" or ""))
+  end
+  table.insert(lines, "")
+
+  -- Create buffer and window
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].buftype = "nofile"
   vim.bo[buf].bufhidden = "wipe"
@@ -142,30 +198,39 @@ function M.show(diff)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.bo[buf].modifiable = false
 
-  local height = math.min(#lines + 1, math.floor(vim.o.lines * 0.5))
+  local height = math.min(#lines + 1, math.floor(vim.o.lines * 0.6))
   vim.cmd("botright " .. height .. "split")
   local win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(win, buf)
   vim.wo[win].number = false
   vim.wo[win].signcolumn = "no"
   vim.wo[win].wrap = false
+  vim.wo[win].cursorline = true
 
   -- Highlights
   local ns = vim.api.nvim_create_namespace("sql_lens_diff")
   for i, line in ipairs(lines) do
     local row = i - 1
-    if line:match("^%s*╔") then
+    if line:match("╔") then
       vim.api.nvim_buf_add_highlight(buf, ns, "SqlLensInfo", row, 0, -1)
-    elseif line:match("^%s*[−]") or line:match("^%s+[−]") then
+    elseif line:match("^%s+[−]") then
       vim.api.nvim_buf_add_highlight(buf, ns, "SqlLensError", row, 0, -1)
-    elseif line:match("^%s*[+]") or line:match("^%s+[+]") then
+    elseif line:match("^%s+[+]") then
       vim.api.nvim_buf_add_highlight(buf, ns, "SqlLensOk", row, 0, -1)
-    elseif line:match("^%s*──") then
+    elseif line:match("^%s+~") then
       vim.api.nvim_buf_add_highlight(buf, ns, "SqlLensWarn", row, 0, -1)
-    elseif line:match("^%s*Table:") then
+    elseif line:match("^%s*──") then
+      vim.api.nvim_buf_add_highlight(buf, ns, "SqlLensDim", row, 0, -1)
+    elseif line:match("📋") then
       vim.api.nvim_buf_add_highlight(buf, ns, "SqlLensInfo", row, 0, -1)
     elseif line:match("✓") then
       vim.api.nvim_buf_add_highlight(buf, ns, "SqlLensOk", row, 0, -1)
+    elseif line:match("⚠") then
+      vim.api.nvim_buf_add_highlight(buf, ns, "SqlLensWarn", row, 0, -1)
+    elseif line:match("ALTER TABLE") then
+      vim.api.nvim_buf_add_highlight(buf, ns, "SqlLensOk", row, 0, -1)
+    elseif line:match("DROP COLUMN") then
+      vim.api.nvim_buf_add_highlight(buf, ns, "SqlLensError", row, 0, -1)
     end
   end
 

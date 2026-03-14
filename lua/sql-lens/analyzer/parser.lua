@@ -19,6 +19,8 @@ function M.parse_postgres(json_data)
       filter        = node["Filter"],
       index_cond    = node["Index Cond"],
       sort_key      = node["Sort Key"],
+      hash_cond     = node["Hash Cond"],
+      join_filter   = node["Join Filter"],
       plans         = {},
       warnings      = {},
     }
