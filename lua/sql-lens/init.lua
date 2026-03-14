@@ -56,6 +56,18 @@ function M.setup(opts)
     if km.cost_trend then
       vim.keymap.set("n", km.cost_trend, M.show_cost_trend, { desc = "SqlLens: cost trend" })
     end
+    if km.er_diagram then
+      vim.keymap.set("n", km.er_diagram, function() require("sql-lens.er_diagram").generate() end, { desc = "SqlLens: ER diagram" })
+    end
+    if km.columns then
+      vim.keymap.set("n", km.columns, function() require("sql-lens.column_picker").pick() end, { desc = "SqlLens: column picker" })
+    end
+    if km.snippets then
+      vim.keymap.set("n", km.snippets, function() require("sql-lens.snippets").pick() end, { desc = "SqlLens: snippets" })
+    end
+    if km.result_diff then
+      vim.keymap.set("n", km.result_diff, M.result_diff_current, { desc = "SqlLens: result diff" })
+    end
   end
 
   -- Apply history config
@@ -489,6 +501,33 @@ end
 
 function M.explore_tables()
   conn_mgr.explore_tables()
+end
+
+function M.result_diff_current()
+  local result_ui = require("sql-lens.ui.result")
+  local rdiff = require("sql-lens.result_diff")
+  local bufnr = vim.api.nvim_get_current_buf()
+
+  local sql = extractor.get_statement_at_cursor(bufnr)
+  if not sql or #sql < 3 then
+    vim.notify("SqlLens: No SQL statement at cursor", vim.log.levels.WARN)
+    return
+  end
+
+  local conn = conn_mgr.get_active(bufnr)
+  if not conn then
+    vim.notify("SqlLens: No connection", vim.log.levels.WARN)
+    return
+  end
+
+  vim.notify("SqlLens: Running query for diff...", vim.log.levels.INFO)
+  conn:execute(sql, function(err, stdout)
+    if err then
+      vim.notify("SqlLens: " .. tostring(err), vim.log.levels.ERROR)
+      return
+    end
+    rdiff.diff(stdout, sql)
+  end)
 end
 
 function M.show_cost_trend()

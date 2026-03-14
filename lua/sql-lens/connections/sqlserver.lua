@@ -178,6 +178,28 @@ function MSSQL:list_columns(tbl, cb)
   end)
 end
 
+function MSSQL:list_foreign_keys(cb)
+  local args = self:_args()
+  local sql = "SELECT tp.name, cp.name, tr.name, cr.name FROM sys.foreign_key_columns fkc JOIN sys.tables tp ON fkc.parent_object_id = tp.object_id JOIN sys.columns cp ON fkc.parent_object_id = cp.object_id AND fkc.parent_column_id = cp.column_id JOIN sys.tables tr ON fkc.referenced_object_id = tr.object_id JOIN sys.columns cr ON fkc.referenced_object_id = cr.object_id AND fkc.referenced_column_id = cr.column_id ORDER BY tp.name"
+  vim.list_extend(args, { "-h", "-1", "-W", "-s", "\t", "-Q", sql })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local fks = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local parts = vim.split(line, "\t")
+      if #parts >= 4 and not parts[1]:match("^%-") then
+        table.insert(fks, {
+          from_table = parts[1]:match("^%s*(.-)%s*$"),
+          from_column = parts[2]:match("^%s*(.-)%s*$"),
+          to_table = parts[3]:match("^%s*(.-)%s*$"),
+          to_column = parts[4]:match("^%s*(.-)%s*$"),
+        })
+      end
+    end
+    cb(nil, fks)
+  end)
+end
+
 function MSSQL:list_databases(cb)
   local args = self:_args()
   vim.list_extend(args, { "-h", "-1", "-W", "-Q", "SELECT name FROM sys.databases ORDER BY name" })

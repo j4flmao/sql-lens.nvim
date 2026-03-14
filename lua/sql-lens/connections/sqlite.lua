@@ -63,4 +63,34 @@ function SQLite:list_columns(tbl, cb)
   )
 end
 
+function SQLite:list_foreign_keys(cb)
+  -- First get all tables, then PRAGMA foreign_key_list for each
+  self:list_tables(function(err, tables)
+    if err then return cb(err, {}) end
+    local fks = {}
+    local done = 0
+    if #tables == 0 then return cb(nil, {}) end
+    for _, tbl in ipairs(tables) do
+      async.job(
+        { "sqlite3", self.config.path, "PRAGMA foreign_key_list(" .. tbl .. ");" },
+        function(code, stdout)
+          if code == 0 then
+            for line in stdout:gmatch("[^\r\n]+") do
+              local parts = vim.split(line, "|")
+              if #parts >= 5 then
+                table.insert(fks, {
+                  from_table = tbl, from_column = parts[4],
+                  to_table = parts[3], to_column = parts[5],
+                })
+              end
+            end
+          end
+          done = done + 1
+          if done == #tables then cb(nil, fks) end
+        end
+      )
+    end
+  end)
+end
+
 return SQLite

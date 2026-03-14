@@ -111,6 +111,11 @@ function MongoDB:list_columns(collection, cb)
   end)
 end
 
+function MongoDB:list_foreign_keys(cb)
+  -- MongoDB has no foreign keys
+  cb(nil, {})
+end
+
 function MongoDB:list_databases(cb)
   local args = self:_args()
   vim.list_extend(args, {

@@ -52,6 +52,10 @@ M.defaults = {
     format        = "<leader>sf",
     schema_diff   = "<leader>sS",
     cost_trend    = "<leader>sT",
+    er_diagram    = "<leader>sE",
+    columns       = "<leader>sC",
+    snippets      = "<leader>si",
+    result_diff   = "<leader>sX",
   },
 }
 

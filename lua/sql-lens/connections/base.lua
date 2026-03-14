@@ -42,6 +42,12 @@ function Base:list_columns(tbl, cb)
   cb("Not implemented", {})
 end
 
+---@param cb fun(err?: string, fks?: table[])
+---Each FK: { from_table, from_column, to_table, to_column }
+function Base:list_foreign_keys(cb)
+  cb("Not implemented", {})
+end
+
 ---Return a preview query for the given table
 ---@param tbl string
 ---@return string

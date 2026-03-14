@@ -110,6 +110,38 @@ function PG:list_columns(tbl, cb)
   end)
 end
 
+function PG:list_foreign_keys(cb)
+  local sql = [[
+    SELECT
+      tc.table_name AS from_table,
+      kcu.column_name AS from_column,
+      ccu.table_name AS to_table,
+      ccu.column_name AS to_column
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kcu
+      ON tc.constraint_name = kcu.constraint_name
+    JOIN information_schema.constraint_column_usage ccu
+      ON tc.constraint_name = ccu.constraint_name
+    WHERE tc.constraint_type = 'FOREIGN KEY'
+    ORDER BY tc.table_name
+  ]]
+  local cmd = { "psql", self:_connstr(), "--no-psqlrc", "-t", "-A", "-F", "\t", "-c", sql }
+  async.job(cmd, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local fks = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local parts = vim.split(line, "\t")
+      if #parts >= 4 then
+        table.insert(fks, {
+          from_table = parts[1], from_column = parts[2],
+          to_table = parts[3], to_column = parts[4],
+        })
+      end
+    end
+    cb(nil, fks)
+  end)
+end
+
 function PG:list_databases(cb)
   local cmd = {
     "psql", self:_connstr(),

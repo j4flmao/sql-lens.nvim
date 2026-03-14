@@ -93,6 +93,26 @@ function MySQL:list_columns(tbl, cb)
   end)
 end
 
+function MySQL:list_foreign_keys(cb)
+  local args = self:_args()
+  local sql = "SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_NAME IS NOT NULL AND TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME"
+  vim.list_extend(args, { "--silent", "--raw", "-e", sql })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local fks = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local parts = vim.split(line, "\t")
+      if #parts >= 4 then
+        table.insert(fks, {
+          from_table = parts[1], from_column = parts[2],
+          to_table = parts[3], to_column = parts[4],
+        })
+      end
+    end
+    cb(nil, fks)
+  end)
+end
+
 function MySQL:list_databases(cb)
   local args = self:_args()
   vim.list_extend(args, { "--silent", "--raw", "-e", "SHOW DATABASES" })
