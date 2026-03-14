@@ -12,10 +12,25 @@ local function walk(node, hints, depth)
 
   if node.node_type == "Seq Scan" and node.relation_name then
     if t.seq_scan_warn then
+      -- Generate index suggestion if filter/join columns detected
+      local suggest = ""
+      if node.filter then
+        local cols = {}
+        for col in node.filter:gmatch("%((%w+)") do
+          if not col:match("^%d") then table.insert(cols, col) end
+        end
+        if #cols > 0 then
+          suggest = string.format(
+            "\n  💡 CREATE INDEX idx_%s_%s ON %s(%s);",
+            node.relation_name, table.concat(cols, "_"),
+            node.relation_name, table.concat(cols, ", ")
+          )
+        end
+      end
       table.insert(hints, {
         level   = "warn",
         icon    = "󰋽",
-        message = string.format("Seq Scan on '%s' — consider adding an index", node.relation_name),
+        message = string.format("Seq Scan on '%s' — consider adding an index", node.relation_name) .. suggest,
         node    = node,
       })
     end

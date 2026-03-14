@@ -22,6 +22,10 @@ Real-time SQL query plan analyzer — see EXPLAIN output inline + execute querie
 - 📄 Result Pagination: large results split into pages with `[`/`]` navigation
 - 🔖 Saved Connections: bookmark connections to JSON file (persist across sessions)
 - 📊 Statusline: lualine component showing current connection + database
+- ✍️ SQL Formatter: beautify SQL with proper keywords & indentation
+- 🔍 Schema Diff: compare schemas between two databases
+- 💡 Index Suggestions: auto-suggest `CREATE INDEX` from EXPLAIN plans
+- 📈 Cost Trend: track query cost over time with sparkline charts
 
 ## 📦 Installation
 
@@ -324,6 +328,9 @@ require("sql-lens").setup({
 | `:SqlLensHistory` | Browse and re-run previous queries |
 | `:SqlLensSaveConn` | Save current connection as bookmark |
 | `:SqlLensExport {fmt}` | Export results to csv/json/md |
+| `:SqlLensFormat` | Format/beautify SQL in buffer |
+| `:SqlLensSchemaDiff` | Compare schemas between 2 connections |
+| `:SqlLensCostTrend` | Show cost trend chart for query at cursor |
 | `:SqlLensUse {name}` | Switch connection by name |
 
 ## ⌨️ Default Keymaps
@@ -339,6 +346,9 @@ require("sql-lens").setup({
 | `<leader>sR` | Run all queries |
 | `<leader>st` | Explore tables/collections |
 | `<leader>sh` | Query history |
+| `<leader>sf` | Format SQL |
+| `<leader>sS` | Schema diff |
+| `<leader>sT` | Cost trend for query at cursor |
 | `q` | Close result/float panel |
 | `E` | Export result (picker) |
 | `ec` / `ej` / `em` | Export to CSV / JSON / Markdown |

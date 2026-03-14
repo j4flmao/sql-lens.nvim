@@ -49,6 +49,9 @@ M.defaults = {
     pick_db       = "<leader>sD",
     explore       = "<leader>st",
     history       = "<leader>sh",
+    format        = "<leader>sf",
+    schema_diff   = "<leader>sS",
+    cost_trend    = "<leader>sT",
   },
 }
 

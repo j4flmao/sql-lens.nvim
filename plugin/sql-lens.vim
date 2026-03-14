@@ -15,6 +15,9 @@ command! SqlLensTables       lua require('sql-lens').explore_tables()
 command! SqlLensHistory      lua require('sql-lens').show_history()
 command! SqlLensSaveConn     lua require('sql-lens.bookmarks').pick_and_save()
 command! -nargs=1 SqlLensExport lua require('sql-lens.ui.result').export(<q-args>)
+command! SqlLensFormat        lua require('sql-lens.formatter').format_buffer()
+command! SqlLensSchemaDiff    lua require('sql-lens.schema_diff').pick_and_compare()
+command! SqlLensCostTrend     lua require('sql-lens').show_cost_trend()
 command! -nargs=1 SqlLensUse lua require('sql-lens').use_connection(<q-args>)
 
 augroup SqlLens

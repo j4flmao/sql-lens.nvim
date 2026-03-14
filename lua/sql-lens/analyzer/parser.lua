@@ -16,6 +16,9 @@ function M.parse_postgres(json_data)
       loops         = node["Actual Loops"] or 1,
       buffers_hit   = node["Shared Hit Blocks"],
       buffers_read  = node["Shared Read Blocks"],
+      filter        = node["Filter"],
+      index_cond    = node["Index Cond"],
+      sort_key      = node["Sort Key"],
       plans         = {},
       warnings      = {},
     }

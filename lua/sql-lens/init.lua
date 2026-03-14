@@ -47,6 +47,15 @@ function M.setup(opts)
     if km.history then
       vim.keymap.set("n", km.history, M.show_history, { desc = "SqlLens: query history" })
     end
+    if km.format then
+      vim.keymap.set({"n", "v"}, km.format, function() require("sql-lens.formatter").format_buffer() end, { desc = "SqlLens: format SQL" })
+    end
+    if km.schema_diff then
+      vim.keymap.set("n", km.schema_diff, function() require("sql-lens.schema_diff").pick_and_compare() end, { desc = "SqlLens: schema diff" })
+    end
+    if km.cost_trend then
+      vim.keymap.set("n", km.cost_trend, M.show_cost_trend, { desc = "SqlLens: cost trend" })
+    end
   end
 
   -- Apply history config
@@ -232,11 +241,22 @@ function M._analyze_one(bufnr, conn, sql, start_line)
 
     float.store(plan, hints)
 
+    -- Record cost trend
+    local cost_trend = require("sql-lens.cost_trend")
+    cost_trend.record(sql, plan.total_cost, plan.execution_time, conn.config.name)
+
     local level = #vim.tbl_filter(function(h) return h.level == "error" end, hints) > 0 and "error"
                or #vim.tbl_filter(function(h) return h.level == "warn"  end, hints) > 0 and "warn"
                or "ok"
 
     local summary = hints_mod.summary_line(plan, hints)
+
+    -- Append trend indicator
+    local trend = cost_trend.get_trend(sql)
+    local trend_text = cost_trend.trend_text(trend)
+    if trend_text then
+      summary = summary .. "  " .. trend_text
+    end
 
     vt.render_summary(bufnr, start_line, summary, level)
     if #hints > 0 then
@@ -469,6 +489,16 @@ end
 
 function M.explore_tables()
   conn_mgr.explore_tables()
+end
+
+function M.show_cost_trend()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local sql = extractor.get_statement_at_cursor(bufnr)
+  if not sql or #sql < 3 then
+    vim.notify("SqlLens: No SQL statement at cursor", vim.log.levels.WARN)
+    return
+  end
+  require("sql-lens.cost_trend").show_trend(sql)
 end
 
 -- Filter modes: 1 = conn+db, 2 = conn (all dbs), 3 = all connections

@@ -21,6 +21,10 @@
 - Result Pagination: `]`/`[` to navigate pages (50 rows per page)
 - Saved Connections (bookmarks): `:SqlLensSaveConn` saves to JSON, auto-loaded on startup
 - Lualine statusline component: `require("sql-lens.statusline").lualine`
+- SQL Formatter: `:SqlLensFormat` / `<leader>sf` — uppercase keywords, proper indentation
+- Schema Diff: `:SqlLensSchemaDiff` / `<leader>sS` — compare schemas between 2 connections
+- Index Suggestion: Seq Scan hints now suggest specific `CREATE INDEX` statements
+- Query Cost Trend: auto-tracks cost per query, shows 📈📉📊 trend inline + `:SqlLensCostTrend` chart
 
 ### Changed
 - PostgreSQL `_connstr()` defaults to `"postgres"` database when `dbname` is omitted
