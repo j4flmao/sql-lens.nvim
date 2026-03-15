@@ -274,17 +274,25 @@ require("sql-lens").setup({
     use_dotenv = true,  -- search for .env in project root
   },
 
-  -- Keymaps (set to false to disable)
+  -- Keymaps (set any to false to disable)
   keymaps = {
-    toggle      = "<leader>sq",   -- enable/disable plugin
-    explain     = "<leader>se",   -- show explain plan
+    toggle      = "<leader>sq",   -- enable/disable inline analysis
+    explain     = "<leader>se",   -- explain all queries
     show_detail = "<leader>sd",   -- floating detail window
-    connect     = "<leader>sc",   -- choose connection
-    run         = "<leader>sr",   -- run query at cursor
-    run_all     = "<leader>sR",   -- run all queries
+    connect     = "<leader>sc",   -- connection picker
     pick_db     = "<leader>sD",   -- pick database from server
-    explore     = "<leader>st",   -- explore tables/collections
+    run         = "<leader>sr",   -- run query at cursor (visual: run selection)
+    run_all     = "<leader>sR",   -- run all queries in buffer
+    explore     = "<leader>st",   -- explore tables
+    columns     = "<leader>sC",   -- column picker (multi-select)
+    er_diagram  = "<leader>sE",   -- ER diagram in browser
+    schema_diff = "<leader>sS",   -- compare schemas
     history     = "<leader>sh",   -- query history
+    snippets    = "<leader>si",   -- SQL snippet templates
+    format      = "<leader>sf",   -- format/beautify SQL
+    cost_trend  = "<leader>sT",   -- cost trend chart
+    result_diff = "<leader>sX",   -- result diff (run & compare)
+    report      = "<leader>sH",   -- HTML performance report
   },
 })
 ```
@@ -314,45 +322,106 @@ require("sql-lens").setup({
 
 ## 🎮 Commands
 
+### Connection & Database
+
 | Command | Description |
 |---------|-------------|
-| `:SqlLensConnect` | Open connection picker |
+| `:SqlLensConnect` | Open connection picker (auto-saves file binding) |
 | `:SqlLensDisconnect` | Disconnect current buffer |
-| `:SqlLensToggle` | Enable/disable inline analysis |
-| `:SqlLensExplain` | Analyze all queries in the file |
-| `:SqlLensFloatDetail` | Show detailed plan in floating window |
-| `:SqlLensRun` | Run query at cursor and show result |
-| `:SqlLensRunAll` | Run all queries in the file |
-| `:SqlLensDB` | Pick database from server (dynamic) |
-| `:SqlLensTables` | Explore tables/collections in current database |
-| `:SqlLensHistory` | Browse and re-run previous queries |
-| `:SqlLensSaveConn` | Save current connection as bookmark |
-| `:SqlLensExport {fmt}` | Export results to csv/json/md |
-| `:SqlLensFormat` | Format/beautify SQL in buffer |
-| `:SqlLensSchemaDiff` | Compare schemas between 2 connections |
-| `:SqlLensCostTrend` | Show cost trend chart for query at cursor |
-| `:SqlLensUse {name}` | Switch connection by name |
+| `:SqlLensDB` | Pick database from server (dynamic list) |
+| `:SqlLensSaveConn` | Save current connection as bookmark (persists to JSON) |
+| `:SqlLensUse {name}` | Switch connection directly by name |
+
+### Query Execution
+
+| Command | Description |
+|---------|-------------|
+| `:SqlLensRun` | Execute query at cursor, show results |
+| `:SqlLensRunAll` | Execute all queries in the buffer |
+| `:SqlLensRunSelection` | Execute visually selected SQL (supports multi-statement) |
+| `:SqlLensResultDiff` | Run query and compare with previous result (diff view) |
+
+### Analysis & Explain
+
+| Command | Description |
+|---------|-------------|
+| `:SqlLensToggle` | Enable/disable inline EXPLAIN analysis |
+| `:SqlLensExplain` | Manually trigger EXPLAIN on all queries |
+| `:SqlLensFloatDetail` | Show detailed plan tree in floating window |
+| `:SqlLensCostTrend` | Show cost trend chart with history for query at cursor |
+| `:SqlLensReport` | Generate HTML performance report |
+
+### Schema & Exploration
+
+| Command | Description |
+|---------|-------------|
+| `:SqlLensTables` | Browse tables/collections, select to generate `SELECT * LIMIT 50` |
+| `:SqlLensColumns` | Multi-select columns with checkboxes, generate custom SELECT |
+| `:SqlLensER` | Generate ER diagram (opens in browser with Mermaid.js) |
+| `:SqlLensSchemaDiff` | Compare schemas between 2 connections (shows migration SQL) |
+
+### Editing & Productivity
+
+| Command | Description |
+|---------|-------------|
+| `:SqlLensFormat` | Format/beautify SQL (uppercase keywords, proper indentation) |
+| `:SqlLensSnippets` | Insert SQL template (CRUD, JOIN, CTE, window functions, etc.) |
+| `:SqlLensHistory` | Browse query history with preview (`<Tab>` to cycle filter) |
+| `:SqlLensExport {fmt}` | Export last result to file (`csv`, `json`, or `md`) |
 
 ## ⌨️ Default Keymaps
 
+### Normal Mode — Global
+
+| Key | Mode | Action |
+|-----|------|--------|
+| `<leader>sc` | n | Connection picker |
+| `<leader>sD` | n | Pick database from server |
+| `<leader>sq` | n | Toggle inline analysis on/off |
+| `<leader>se` | n | Explain all queries |
+| `<leader>sd` | n | Show detail in floating window |
+| `<leader>sr` | n | Run query at cursor |
+| `<leader>sr` | v | Run selected SQL |
+| `<leader>sR` | n | Run all queries in buffer |
+| `<leader>st` | n | Explore tables (generates SELECT) |
+| `<leader>sC` | n | Column picker (multi-select → SELECT) |
+| `<leader>sE` | n | ER diagram (opens in browser) |
+| `<leader>sS` | n | Schema diff between 2 connections |
+| `<leader>sh` | n | Query history (`<Tab>` cycles filter) |
+| `<leader>si` | n | SQL snippet templates |
+| `<leader>sf` | n/v | Format SQL |
+| `<leader>sT` | n | Cost trend chart |
+| `<leader>sX` | n | Result diff (run & compare) |
+| `<leader>sH` | n | HTML performance report |
+
+### Result Buffer — Inside Result Split
+
 | Key | Action |
 |-----|--------|
-| `<leader>sq` | Toggle on/off |
-| `<leader>se` | Explain all queries |
-| `<leader>sd` | Float detail window |
-| `<leader>sc` | Connection picker |
-| `<leader>sD` | Pick database from server |
-| `<leader>sr` | Run query at cursor |
-| `<leader>sR` | Run all queries |
-| `<leader>st` | Explore tables/collections |
-| `<leader>sh` | Query history |
-| `<leader>sf` | Format SQL |
-| `<leader>sS` | Schema diff |
-| `<leader>sT` | Cost trend for query at cursor |
-| `q` | Close result/float panel |
-| `E` | Export result (picker) |
-| `ec` / `ej` / `em` | Export to CSV / JSON / Markdown |
-| `]` / `[` | Next / previous page (large results) |
+| `q` | Close result panel |
+| `E` | Export format picker |
+| `ec` | Export to CSV |
+| `ej` | Export to JSON |
+| `em` | Export to Markdown |
+| `]` | Next page (large results, 50 rows/page) |
+| `[` | Previous page |
+| `H` / `L` | Scroll left / right |
+| `←` / `→` | Scroll horizontally |
+
+### Picker — Inside Any Picker Window
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` / `↑` / `↓` | Navigate items |
+| `Enter` | Confirm selection |
+| `Esc` / `q` | Cancel |
+| Type any letter | Filter/search items |
+| `Backspace` | Delete search character |
+| `Ctrl+w` | Clear search |
+| `Ctrl+d` / `Ctrl+u` | Page down / up |
+| `Tab` | Toggle filter mode (history only) |
+| `Space` | Toggle checkbox (column picker only) |
+| `a` | Select/deselect all (column picker only) |
 
 ## 🔧 Requirements
 

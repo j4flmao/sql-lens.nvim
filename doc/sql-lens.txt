@@ -107,11 +107,46 @@ COMMANDS                                                   *sql-lens-commands*
     Export the last query result to a file.
     Supported formats: csv, json, md (markdown).
 
+:SqlLensFormat                                              *:SqlLensFormat*
+    Format/beautify SQL in the buffer. Uppercases keywords,
+    adds line breaks before clauses, proper indentation.
+    Works on whole buffer or visual selection.
+
+:SqlLensER                                                      *:SqlLensER*
+    Generate ER diagram as HTML with Mermaid.js.
+    Opens in browser. Shows tables, columns, foreign keys.
+    Includes zoom controls and SVG download.
+
+:SqlLensColumns                                            *:SqlLensColumns*
+    Multi-select column picker. Pick a table, then check
+    columns to include, generates a custom SELECT query.
+
+:SqlLensSnippets                                          *:SqlLensSnippets*
+    Insert SQL templates: CRUD, JOIN, CTE, window functions,
+    pagination, UPSERT, MERGE, and more. Preview before insert.
+
+:SqlLensResultDiff                                      *:SqlLensResultDiff*
+    Run query at cursor and compare with previous run.
+    First run saves a snapshot. Second run shows diff:
+    added rows, removed rows, row count changes.
+
 Result buffer keymaps (inside the result split):
     E           Open export format picker
     ec / ej / em    Export to CSV / JSON / Markdown
     ] / [       Next / previous page (for large results)
+    H / L       Scroll left / right
     q           Close result panel
+
+Picker keymaps (inside any picker window):
+    j/k         Navigate items
+    Enter       Confirm selection
+    Esc/q       Cancel
+    <type>      Filter/search items by typing
+    Backspace   Delete search character
+    Ctrl+w      Clear search
+    Tab         Toggle filter mode (history)
+    Space       Toggle checkbox (column picker)
+    a           Select/deselect all (column picker)
 
 ==============================================================================
 CONFIGURATION                                               *sql-lens-config*
@@ -146,11 +181,18 @@ Default configuration: >lua
       explain     = "<leader>se",
       show_detail = "<leader>sd",
       connect     = "<leader>sc",
+      pick_db     = "<leader>sD",
       run         = "<leader>sr",
       run_all     = "<leader>sR",
-      pick_db     = "<leader>sD",
       explore     = "<leader>st",
+      columns     = "<leader>sC",
+      er_diagram  = "<leader>sE",
+      schema_diff = "<leader>sS",
       history     = "<leader>sh",
+      snippets    = "<leader>si",
+      format      = "<leader>sf",
+      cost_trend  = "<leader>sT",
+      result_diff = "<leader>sX",
       report      = "<leader>sH",
     },
   }
