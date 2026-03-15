@@ -143,18 +143,27 @@ function MSSQL:preview_query(tbl)
   return "SELECT TOP 50 * FROM [" .. tbl .. "];"
 end
 
+---Filter sqlcmd noise lines
+local function is_noise(line)
+  return line:match("^%-%-")
+      or line:match("rows? affected")
+      or line:match("^Changed database")
+      or line:match("^%(%d+ rows?")
+      or line:match("^$")
+end
+
 function MSSQL:list_tables(cb)
   local args = self:_args()
   vim.list_extend(args, {
     "-h", "-1", "-W", "-Q",
-    "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME",
+    "SET NOCOUNT ON; SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME",
   })
   async.job(args, function(code, stdout, stderr)
     if code ~= 0 then return cb(stderr or "error", {}) end
     local tables = {}
     for line in stdout:gmatch("[^\r\n]+") do
       local name = line:match("^%s*(.-)%s*$")
-      if name ~= "" and not name:match("^%-%-") then table.insert(tables, name) end
+      if name ~= "" and not is_noise(name) then table.insert(tables, name) end
     end
     cb(nil, tables)
   end)
@@ -163,7 +172,7 @@ end
 function MSSQL:list_columns(tbl, cb)
   local args = self:_args()
   local sql = string.format(
-    "SELECT COLUMN_NAME + ' ' + DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '%s' ORDER BY ORDINAL_POSITION",
+    "SET NOCOUNT ON; SELECT COLUMN_NAME + ' ' + DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '%s' ORDER BY ORDINAL_POSITION",
     tbl
   )
   vim.list_extend(args, { "-h", "-1", "-W", "-Q", sql })
@@ -172,7 +181,7 @@ function MSSQL:list_columns(tbl, cb)
     local cols = {}
     for line in stdout:gmatch("[^\r\n]+") do
       local name = line:match("^%s*(.-)%s*$")
-      if name ~= "" and not name:match("^%-%-") then table.insert(cols, name) end
+      if name ~= "" and not is_noise(name) then table.insert(cols, name) end
     end
     cb(nil, cols)
   end)
@@ -180,7 +189,7 @@ end
 
 function MSSQL:list_foreign_keys(cb)
   local args = self:_args()
-  local sql = "SELECT tp.name, cp.name, tr.name, cr.name FROM sys.foreign_key_columns fkc JOIN sys.tables tp ON fkc.parent_object_id = tp.object_id JOIN sys.columns cp ON fkc.parent_object_id = cp.object_id AND fkc.parent_column_id = cp.column_id JOIN sys.tables tr ON fkc.referenced_object_id = tr.object_id JOIN sys.columns cr ON fkc.referenced_object_id = cr.object_id AND fkc.referenced_column_id = cr.column_id ORDER BY tp.name"
+  local sql = "SET NOCOUNT ON; SELECT tp.name, cp.name, tr.name, cr.name FROM sys.foreign_key_columns fkc JOIN sys.tables tp ON fkc.parent_object_id = tp.object_id JOIN sys.columns cp ON fkc.parent_object_id = cp.object_id AND fkc.parent_column_id = cp.column_id JOIN sys.tables tr ON fkc.referenced_object_id = tr.object_id JOIN sys.columns cr ON fkc.referenced_object_id = cr.object_id AND fkc.referenced_column_id = cr.column_id ORDER BY tp.name"
   vim.list_extend(args, { "-h", "-1", "-W", "-s", "\t", "-Q", sql })
   async.job(args, function(code, stdout, stderr)
     if code ~= 0 then return cb(stderr or "error", {}) end
