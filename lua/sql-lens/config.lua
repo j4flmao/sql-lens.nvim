@@ -56,6 +56,9 @@ M.defaults = {
     columns       = "<leader>sC",
     snippets      = "<leader>si",
     result_diff   = "<leader>sX",
+    chart         = "<leader>sG",
+    dashboard     = "<leader>sZ",
+    dep_graph     = "<leader>sP",
   },
 }
 

@@ -68,6 +68,15 @@ function M.setup(opts)
     if km.result_diff then
       vim.keymap.set("n", km.result_diff, M.result_diff_current, { desc = "SqlLens: result diff" })
     end
+    if km.chart then
+      vim.keymap.set("n", km.chart, function() require("sql-lens.chart").show() end, { desc = "SqlLens: chart view" })
+    end
+    if km.dashboard then
+      vim.keymap.set("n", km.dashboard, function() require("sql-lens.dashboard").show() end, { desc = "SqlLens: table sizes" })
+    end
+    if km.dep_graph then
+      vim.keymap.set("n", km.dep_graph, function() require("sql-lens.dep_graph").generate() end, { desc = "SqlLens: dependency graph" })
+    end
   end
 
   -- Apply history config

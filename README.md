@@ -26,6 +26,9 @@ Real-time SQL query plan analyzer — see EXPLAIN output inline + execute querie
 - 🔍 Schema Diff: compare schemas between two databases
 - 💡 Index Suggestions: auto-suggest `CREATE INDEX` from EXPLAIN plans
 - 📈 Cost Trend: track query cost over time with sparkline charts
+- 📊 Chart View: ASCII bar charts from query results
+- 📏 Table Size Dashboard: row counts + disk size for all tables
+- 🕸️ Dependency Graph: view/proc → table relationships in browser
 
 ## 📦 Installation
 
@@ -359,6 +362,14 @@ require("sql-lens").setup({
 | `:SqlLensColumns` | Multi-select columns with checkboxes, generate custom SELECT |
 | `:SqlLensER` | Generate ER diagram (opens in browser with Mermaid.js) |
 | `:SqlLensSchemaDiff` | Compare schemas between 2 connections (shows migration SQL) |
+| `:SqlLensDepGraph` | Dependency graph: views/procs → tables (opens in browser) |
+
+### Visualization
+
+| Command | Description |
+|---------|-------------|
+| `:SqlLensChart` | Bar chart from last query result (auto-detects numeric columns) |
+| `:SqlLensDashboard` | Table size dashboard: row counts + disk size, sorted by size |
 
 ### Editing & Productivity
 
@@ -392,6 +403,9 @@ require("sql-lens").setup({
 | `<leader>sf` | n/v | Format SQL |
 | `<leader>sT` | n | Cost trend chart |
 | `<leader>sX` | n | Result diff (run & compare) |
+| `<leader>sG` | n | Chart view (bar chart from result) |
+| `<leader>sZ` | n | Table size dashboard |
+| `<leader>sP` | n | Dependency graph (opens in browser) |
 | `<leader>sH` | n | HTML performance report |
 
 ### Result Buffer — Inside Result Split
