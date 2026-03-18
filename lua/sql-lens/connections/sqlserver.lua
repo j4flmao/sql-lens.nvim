@@ -187,6 +187,30 @@ function MSSQL:list_columns(tbl, cb)
   end)
 end
 
+function MSSQL:list_table_sizes(cb)
+  local args = self:_args()
+  local sql = "SET NOCOUNT ON; SELECT t.name, SUM(p.rows), SUM(a.total_pages) * 8192 FROM sys.tables t JOIN sys.indexes i ON t.object_id = i.object_id JOIN sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id JOIN sys.allocation_units a ON p.partition_id = a.container_id WHERE i.index_id IN (0, 1) GROUP BY t.name ORDER BY SUM(a.total_pages) DESC"
+  vim.list_extend(args, { "-h", "-1", "-W", "-s", "\t", "-Q", sql })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local sizes = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local trimmed = line:match("^%s*(.-)%s*$")
+      if is_noise(trimmed) or trimmed == "" then goto next end
+      local parts = vim.split(trimmed, "\t")
+      if #parts >= 3 then
+        table.insert(sizes, {
+          name = parts[1]:match("^%s*(.-)%s*$"),
+          row_count = tonumber(parts[2]) or 0,
+          bytes = tonumber(parts[3]) or 0,
+        })
+      end
+      ::next::
+    end
+    cb(nil, sizes)
+  end)
+end
+
 function MSSQL:list_foreign_keys(cb)
   local args = self:_args()
   local sql = "SET NOCOUNT ON; SELECT tp.name, cp.name, tr.name, cr.name FROM sys.foreign_key_columns fkc JOIN sys.tables tp ON fkc.parent_object_id = tp.object_id JOIN sys.columns cp ON fkc.parent_object_id = cp.object_id AND fkc.parent_column_id = cp.column_id JOIN sys.tables tr ON fkc.referenced_object_id = tr.object_id JOIN sys.columns cr ON fkc.referenced_object_id = cr.object_id AND fkc.referenced_column_id = cr.column_id ORDER BY tp.name"

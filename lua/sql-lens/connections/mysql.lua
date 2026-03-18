@@ -93,6 +93,27 @@ function MySQL:list_columns(tbl, cb)
   end)
 end
 
+function MySQL:list_table_sizes(cb)
+  local args = self:_args()
+  vim.list_extend(args, { "--silent", "--raw", "-e",
+    "SELECT TABLE_NAME, TABLE_ROWS, DATA_LENGTH + INDEX_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' ORDER BY DATA_LENGTH + INDEX_LENGTH DESC" })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local sizes = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local parts = vim.split(line, "\t")
+      if #parts >= 3 and parts[1] ~= "" then
+        table.insert(sizes, {
+          name = parts[1],
+          row_count = tonumber(parts[2]) or 0,
+          bytes = tonumber(parts[3]) or 0,
+        })
+      end
+    end
+    cb(nil, sizes)
+  end)
+end
+
 function MySQL:list_foreign_keys(cb)
   local args = self:_args()
   local sql = "SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_NAME IS NOT NULL AND TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME"

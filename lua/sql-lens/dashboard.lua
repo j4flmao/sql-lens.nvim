@@ -22,38 +22,6 @@ local function fmt_count(n)
   return table.concat(parts, ",")
 end
 
----Get size query for each adapter type
-local SIZE_QUERIES = {
-  postgres = [[
-    SELECT tablename AS name,
-           n_live_tup AS row_count,
-           pg_total_relation_size(schemaname||'.'||tablename) AS total_bytes
-    FROM pg_stat_user_tables
-    ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
-  ]],
-  mysql = [[
-    SELECT TABLE_NAME AS name,
-           TABLE_ROWS AS row_count,
-           DATA_LENGTH + INDEX_LENGTH AS total_bytes
-    FROM INFORMATION_SCHEMA.TABLES
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
-    ORDER BY DATA_LENGTH + INDEX_LENGTH DESC
-  ]],
-  sqlserver = [[
-    SET NOCOUNT ON;
-    SELECT t.name,
-           SUM(p.rows) AS row_count,
-           SUM(a.total_pages) * 8192 AS total_bytes
-    FROM sys.tables t
-    JOIN sys.indexes i ON t.object_id = i.object_id
-    JOIN sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id
-    JOIN sys.allocation_units a ON p.partition_id = a.container_id
-    WHERE i.index_id IN (0, 1)
-    GROUP BY t.name
-    ORDER BY SUM(a.total_pages) DESC
-  ]],
-}
-
 function M.show()
   local conn_mgr = require("sql-lens.connections")
   local bufnr = vim.api.nvim_get_current_buf()
@@ -64,51 +32,29 @@ function M.show()
     return
   end
 
-  local query = SIZE_QUERIES[conn.type]
-  if not query then
-    -- Fallback: just list tables with row count estimation
-    M._fallback(conn)
-    return
-  end
-
   vim.notify("SqlLens: Loading table sizes...", vim.log.levels.INFO)
 
-  conn:execute(query, function(err, stdout)
-    if err then
-      vim.notify("SqlLens: " .. tostring(err), vim.log.levels.ERROR)
-      M._fallback(conn)
+  conn:list_table_sizes(function(err, sizes)
+    if err or not sizes or #sizes == 0 then
+      -- Fallback: just list tables
+      conn:list_tables(function(terr, tables)
+        if terr or #tables == 0 then
+          vim.notify("SqlLens: No tables found", vim.log.levels.WARN)
+          return
+        end
+        local fallback_sizes = {}
+        for _, t in ipairs(tables) do
+          table.insert(fallback_sizes, { name = t, row_count = 0, bytes = 0 })
+        end
+        M._render(fallback_sizes, conn)
+      end)
       return
     end
-
-    local result_ui = require("sql-lens.ui.result")
-    local data = result_ui._extract_data(stdout)
-    if not data or #data.rows == 0 then
-      M._fallback(conn)
-      return
-    end
-
-    M._render(data, conn)
+    M._render(sizes, conn)
   end)
 end
 
-function M._fallback(conn)
-  conn:list_tables(function(err, tables)
-    if err or #tables == 0 then
-      vim.notify("SqlLens: No tables found", vim.log.levels.WARN)
-      return
-    end
-    local data = {
-      headers = { "name", "row_count", "total_bytes" },
-      rows = {},
-    }
-    for _, t in ipairs(tables) do
-      table.insert(data.rows, { t, "?", "0" })
-    end
-    M._render(data, conn)
-  end)
-end
-
-function M._render(data, conn)
+function M._render(sizes, conn)
   local lines = {}
   local db = conn.config.dbname or conn.config.name or "?"
 
@@ -117,31 +63,26 @@ function M._render(data, conn)
   table.insert(lines, "  Database: " .. db)
   table.insert(lines, "")
 
-  -- Parse rows
-  local tables = {}
+  -- Aggregate stats
   local total_rows = 0
   local total_bytes = 0
   local max_bytes = 0
 
-  for _, row in ipairs(data.rows) do
-    local name = row[1] or "?"
-    local row_count = tonumber(row[2]) or 0
-    local bytes = tonumber(row[3]) or 0
-    total_rows = total_rows + row_count
-    total_bytes = total_bytes + bytes
-    max_bytes = math.max(max_bytes, bytes)
-    table.insert(tables, { name = name, rows = row_count, bytes = bytes })
+  for _, t in ipairs(sizes) do
+    total_rows = total_rows + (t.row_count or 0)
+    total_bytes = total_bytes + (t.bytes or 0)
+    max_bytes = math.max(max_bytes, t.bytes or 0)
   end
 
   -- Summary
   table.insert(lines, string.format("  %d tables  %s total rows  %s total size",
-    #tables, fmt_count(total_rows), fmt_size(total_bytes)))
+    #sizes, fmt_count(total_rows), fmt_size(total_bytes)))
   table.insert(lines, "")
 
   -- Header
   local bar_width = 20
   local name_width = 0
-  for _, t in ipairs(tables) do
+  for _, t in ipairs(sizes) do
     name_width = math.max(name_width, #t.name)
   end
   name_width = math.min(name_width, 25)
@@ -152,19 +93,19 @@ function M._render(data, conn)
   table.insert(lines, "  " .. string.rep("─", #header - 2))
 
   -- Rows
-  for _, t in ipairs(tables) do
-    local name = t.name
+  for _, t in ipairs(sizes) do
+    local name = t.name or "?"
     if #name > name_width then name = name:sub(1, name_width - 2) .. ".." end
 
     local bar = ""
-    if max_bytes > 0 and t.bytes > 0 then
+    if max_bytes > 0 and (t.bytes or 0) > 0 then
       local ratio = t.bytes / max_bytes
       local len = math.max(1, math.floor(ratio * bar_width))
       bar = string.rep("█", len)
     end
 
     table.insert(lines, string.format("  %-" .. name_width .. "s  %12s  %10s  %s",
-      name, fmt_count(t.rows), fmt_size(t.bytes), bar))
+      name, fmt_count(t.row_count), fmt_size(t.bytes), bar))
   end
 
   table.insert(lines, "")

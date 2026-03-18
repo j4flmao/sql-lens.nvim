@@ -110,6 +110,26 @@ function PG:list_columns(tbl, cb)
   end)
 end
 
+function PG:list_table_sizes(cb)
+  local sql = "SELECT tablename, n_live_tup, pg_total_relation_size(schemaname||'.'||tablename) FROM pg_stat_user_tables ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC"
+  local cmd = { "psql", self:_connstr(), "--no-psqlrc", "-t", "-A", "-F", "\t", "-c", sql }
+  async.job(cmd, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local sizes = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local parts = vim.split(line, "\t")
+      if #parts >= 3 and parts[1] ~= "" then
+        table.insert(sizes, {
+          name = parts[1],
+          row_count = tonumber(parts[2]) or 0,
+          bytes = tonumber(parts[3]) or 0,
+        })
+      end
+    end
+    cb(nil, sizes)
+  end)
+end
+
 function PG:list_foreign_keys(cb)
   local sql = [[
     SELECT
