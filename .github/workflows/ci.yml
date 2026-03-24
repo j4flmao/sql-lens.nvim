@@ -46,8 +46,8 @@ jobs:
 
       - name: Install stylua + selene
         run: |
-          cargo install stylua --locked
-          cargo install selene --locked
+          (command -v stylua >/dev/null 2>&1 && echo "stylua already installed") || cargo install stylua --locked --force
+          (command -v selene  >/dev/null 2>&1 && echo "selene already installed") || cargo install selene --locked --force
 
       - name: Lint (selene)
         continue-on-error: true
