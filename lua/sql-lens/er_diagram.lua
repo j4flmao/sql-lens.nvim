@@ -246,12 +246,19 @@ function M.generate()
         done_cols = done_cols + 1
         if done_cols == total then
           local function with_fks(fks)
+            local function with_unique_and_null(uniq)
+              if conn.list_nullability then
+                conn:list_nullability(function(_, nulmap)
+                  M._build(tables, table_cols, fks or {}, conn, uniq or nil, nulmap or nil)
+                end)
+              else
+                M._build(tables, table_cols, fks or {}, conn, uniq or nil, nil)
+              end
+            end
             if conn.list_unique_info then
-              conn:list_unique_info(function(_, uniq)
-                M._build(tables, table_cols, fks or {}, conn, uniq or nil)
-              end)
+              conn:list_unique_info(function(_, uniq) with_unique_and_null(uniq) end)
             else
-              M._build(tables, table_cols, fks or {}, conn, nil)
+              with_unique_and_null(nil)
             end
           end
           if conn.list_foreign_keys then
@@ -265,7 +272,7 @@ function M.generate()
   end)
 end
 
-function M._build(tables, table_cols, fks, conn, unique_info)
+function M._build(tables, table_cols, fks, conn, unique_info, nullability)
   local fk_set = {}
   for _, fk in ipairs(fks) do
     fk_set[fk.from_table .. "." .. fk.from_column] = fk.to_table .. "." .. fk.to_column
@@ -374,10 +381,12 @@ function M._build(tables, table_cols, fks, conn, unique_info)
             if r.fk_target then
               local to_tbl = r.fk_target:match("^([^%.]+)%.") or r.fk_target
               -- Determine cardinality label at source side
-              local left_char = "N"
-              if unique_single[tbl] and unique_single[tbl][r.name or ""] then
-                left_char = "1"
+              local is_unique = unique_single[tbl] and unique_single[tbl][r.name or ""] or false
+              local is_nullable = false
+              if nullability and nullability[tbl] and r.name then
+                is_nullable = nullability[tbl][r.name] and true or false
               end
+              local left_char = is_unique and "1" or "N"
               table.insert(edges, { from_y = lno + 1, to_table = to_tbl, left_char = left_char, right_char = "1", from_table = tbl, from_col = r.name or "" })
             end
           end
@@ -457,11 +466,18 @@ function M._build(tables, table_cols, fks, conn, unique_info)
     end
     -- Print individual FK lines with detected cardinality
     for _, fk in ipairs(fks) do
-      local left_char = "N"
-      if unique_single[fk.from_table] and unique_single[fk.from_table][fk.from_column] then
-        left_char = "1"
+      local is_unique = unique_single[fk.from_table] and unique_single[fk.from_table][fk.from_column] or false
+      local is_nullable = false
+      if nullability and nullability[fk.from_table] and nullability[fk.from_table][fk.from_column] then
+        is_nullable = true
       end
-      local s = string.format("%s.%s -> %s.%s (%s:1)", fk.from_table, fk.from_column, fk.to_table, fk.to_column, left_char)
+      local left_mult
+      if is_unique then
+        left_mult = is_nullable and "0..1" or "1"
+      else
+        left_mult = is_nullable and "0..N" or "N"
+      end
+      local s = string.format("%s.%s -> %s.%s (%s:1)", fk.from_table, fk.from_column, fk.to_table, fk.to_column, left_mult)
       push_right(s)
     end
   end

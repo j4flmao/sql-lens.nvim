@@ -99,9 +99,9 @@ function M._write_bindings(bindings)
   f:close()
 end
 
-function M.bind_file(filepath, conn_name, dbname)
+function M.bind_file(filepath, conn_name, dbname, schema)
   local bindings = M._read_bindings()
-  bindings[filepath] = { connection = conn_name, database = dbname or "" }
+  bindings[filepath] = { connection = conn_name, database = dbname or "", schema = schema or "" }
   M._write_bindings(bindings)
 end
 

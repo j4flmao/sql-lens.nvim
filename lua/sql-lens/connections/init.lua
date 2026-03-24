@@ -153,9 +153,46 @@ function M.pick_database()
         -- Update file binding with new database
         local filepath = vim.api.nvim_buf_get_name(bufnr)
         if filepath and filepath ~= "" then
-          require("sql-lens.bookmarks").bind_file(filepath, conn.config.name, choice)
+          require("sql-lens.bookmarks").bind_file(filepath, conn.config.name, choice, conn.config.schema)
         end
         vim.notify("SqlLens: Switched to database '" .. choice .. "'", vim.log.levels.INFO)
+      end,
+    })
+  end)
+end
+
+function M.pick_schema()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local conn = M.get_active(bufnr)
+  if not conn then
+    vim.notify("SqlLens: No active connection — use :SqlLensConnect first", vim.log.levels.WARN)
+    return
+  end
+  if not conn.list_schemas then
+    vim.notify("SqlLens: This adapter does not support schemas", vim.log.levels.WARN)
+    return
+  end
+  vim.notify("SqlLens: Fetching schemas...", vim.log.levels.INFO)
+  conn:list_schemas(function(err, schemas)
+    if err then
+      vim.notify("SqlLens: " .. tostring(err), vim.log.levels.ERROR)
+      return
+    end
+    if #schemas == 0 then
+      vim.notify("SqlLens: No schemas found", vim.log.levels.WARN)
+      return
+    end
+    local picker = require("sql-lens.ui.picker")
+    picker.open(schemas, {
+      prompt = "Schema (" .. (conn.config.dbname or conn.config.name) .. ")",
+      on_select = function(choice)
+        conn.config.schema = choice
+        require("sql-lens.completion").invalidate()
+        local filepath = vim.api.nvim_buf_get_name(bufnr)
+        if filepath and filepath ~= "" then
+          require("sql-lens.bookmarks").bind_file(filepath, conn.config.name, conn.config.dbname, choice)
+        end
+        vim.notify("SqlLens: Switched to schema '" .. choice .. "'", vim.log.levels.INFO)
       end,
     })
   end)

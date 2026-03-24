@@ -14,6 +14,9 @@ local secrets     = require("sql-lens.utils.secrets")
 
 M._config  = {}
 M._enabled = true
+M._batch_id = {}
+M._queues = {}
+M._inflight = {}
 
 function M.setup(opts)
   M._config = vim.tbl_deep_extend("force", config_mod.defaults, opts or {})
@@ -114,6 +117,9 @@ function M.attach_buffer()
             conn_mgr._disconnected[bufnr] = nil
             if binding.database and binding.database ~= "" then
               conn.config.dbname = binding.database
+            end
+            if binding.schema and binding.schema ~= "" then
+              conn.config.schema = binding.schema
             end
             break
           end
@@ -238,15 +244,60 @@ function M._run_all_analysis(bufnr)
     vt.render_lint_errors(bufnr, all_errors)
   end
 
-  -- Run server explain for each statement (async)
+  M._batch_id[bufnr] = (M._batch_id[bufnr] or 0) + 1
+  local bid = M._batch_id[bufnr]
+  M._queues[bufnr] = {}
+  M._inflight[bufnr] = 0
+  local max_conc = (M._config.trigger.max_concurrent or 3)
+
+  local function start_next()
+    if M._inflight[bufnr] >= max_conc then return end
+    local item = table.remove(M._queues[bufnr], 1)
+    if not item then return end
+    M._inflight[bufnr] = M._inflight[bufnr] + 1
+    conn:explain(item.sql, function(err, raw_data)
+      if bid ~= M._batch_id[bufnr] then
+        M._inflight[bufnr] = math.max(0, M._inflight[bufnr] - 1)
+        start_next()
+        return
+      end
+      if err then
+        local err_str = tostring(err or "")
+        local first_line = err_str:match("([^\r\n]+)") or err_str
+        local msg = #first_line > 80 and (first_line:sub(1,77) .. "...") or first_line
+        vt.render_summary(bufnr, item.start_line, "Error: " .. msg, "error")
+      else
+        local plan  = parser.parse(raw_data, conn.type)
+        local hints = hints_mod.analyze(plan)
+        float.store(plan, hints)
+        local cost_trend = require("sql-lens.cost_trend")
+        cost_trend.record(item.sql, plan.total_cost, plan.execution_time, conn.config.name)
+        local level = #vim.tbl_filter(function(h) return h.level == "error" end, hints) > 0 and "error"
+                   or #vim.tbl_filter(function(h) return h.level == "warn"  end, hints) > 0 and "warn"
+                   or "ok"
+        local summary = hints_mod.summary_line(plan, hints)
+        local trend = cost_trend.get_trend(item.sql)
+        local trend_text = cost_trend.trend_text(trend)
+        if trend_text then summary = summary .. "  " .. trend_text end
+        vt.render_summary(bufnr, item.start_line, summary, level)
+        if #hints > 0 then
+          vt.render_hints(bufnr, item.start_line, hints)
+        end
+      end
+      M._inflight[bufnr] = math.max(0, M._inflight[bufnr] - 1)
+      start_next()
+    end)
+    start_next()
+  end
+
   for _, stmt in ipairs(statements) do
     if #stmt.sql >= (M._config.trigger.min_length or 10) then
-      -- Only skip THIS statement if IT has a hard lint error
       if not errored_stmts[stmt.start_line] then
-        M._analyze_one(bufnr, conn, stmt.sql, stmt.start_line)
+        table.insert(M._queues[bufnr], { sql = stmt.sql, start_line = stmt.start_line })
       end
     end
   end
+  for i = 1, max_conc do start_next() end
 end
 
 ---Analyze a single SQL statement via server and render inline
@@ -344,6 +395,10 @@ end
 
 function M.pick_database()
   conn_mgr.pick_database()
+end
+
+function M.pick_schema()
+  conn_mgr.pick_schema()
 end
 
 ---Execute the SQL statement at cursor and show results

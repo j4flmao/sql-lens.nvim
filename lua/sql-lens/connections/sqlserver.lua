@@ -292,4 +292,45 @@ function MSSQL:list_databases(cb)
   end)
 end
 
+function MSSQL:list_schemas(cb)
+  local args = self:_args()
+  vim.list_extend(args, { "-h", "-1", "-W", "-Q", "SELECT name FROM sys.schemas ORDER BY name" })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local schemas = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local name = line:match("^%s*(.-)%s*$")
+      if name ~= "" and not name:match("^%-%-") then
+        table.insert(schemas, name)
+      end
+    end
+    cb(nil, schemas)
+  end)
+end
+
+function MSSQL:list_nullability(cb)
+  local args = self:_args()
+  local sql = [[
+    SET NOCOUNT ON;
+    SELECT t.name, c.name, c.is_nullable
+    FROM sys.columns c
+    JOIN sys.tables t ON t.object_id = c.object_id
+    ORDER BY t.name, c.column_id
+  ]]
+  vim.list_extend(args, { "-h", "-1", "-W", "-s", "\t", "-Q", sql })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local map = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local parts = vim.split(line, "\t")
+      local tbl, col, nul = parts[1], parts[2], parts[3]
+      if tbl and col and nul then
+        map[tbl] = map[tbl] or {}
+        map[tbl][col] = (nul == "1")
+      end
+    end
+    cb(nil, map)
+  end)
+end
+
 return MSSQL

@@ -189,4 +189,27 @@ function MySQL:list_databases(cb)
   end)
 end
 
+function MySQL:list_nullability(cb)
+  local args = self:_args()
+  local sql = [[
+    SELECT TABLE_NAME, COLUMN_NAME, IS_NULLABLE
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+  ]]
+  vim.list_extend(args, { "--silent", "--raw", "-e", sql })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local map = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local parts = vim.split(line, "\t")
+      local tbl, col, nul = parts[1], parts[2], parts[3]
+      if tbl and col and nul then
+        map[tbl] = map[tbl] or {}
+        map[tbl][col] = (nul == "YES")
+      end
+    end
+    cb(nil, map)
+  end)
+end
+
 return MySQL

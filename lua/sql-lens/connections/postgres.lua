@@ -222,4 +222,43 @@ function PG:list_databases(cb)
   end)
 end
 
+function PG:list_schemas(cb)
+  local cmd = {
+    "psql", self:_connstr(),
+    "--no-psqlrc", "-t", "-A",
+    "-c", "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog','information_schema') ORDER BY 1"
+  }
+  async.job(cmd, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local schemas = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local name = line:match("^%s*(.-)%s*$")
+      if name ~= "" then table.insert(schemas, name) end
+    end
+    cb(nil, schemas)
+  end)
+end
+
+function PG:list_nullability(cb)
+  local sql = [[
+    SELECT table_name, column_name, is_nullable
+    FROM information_schema.columns
+    WHERE table_schema = COALESCE(current_schema(), 'public')
+  ]]
+  local cmd = { "psql", self:_connstr(), "--no-psqlrc", "-t", "-A", "-F", "\t", "-c", sql }
+  async.job(cmd, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local map = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local parts = vim.split(line, "\t")
+      local tbl, col, nul = parts[1], parts[2], parts[3]
+      if tbl and col and nul then
+        map[tbl] = map[tbl] or {}
+        map[tbl][col] = (nul == "YES")
+      end
+    end
+    cb(nil, map)
+  end)
+end
+
 return PG
