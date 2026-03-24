@@ -161,10 +161,9 @@ function M.format(sql)
       elseif ch == "," and depth == 0 then
         table.insert(parts, current:match("^%s*(.-)%s*$"))
         current = ""
-        goto continue
+      else
+        current = current .. ch
       end
-      current = current .. ch
-      ::continue::
     end
     if current:match("%S") then
       table.insert(parts, current:match("^%s*(.-)%s*$"))
@@ -185,26 +184,24 @@ function M.format(sql)
 
   for _, line in ipairs(raw_lines) do
     local trimmed = line:match("^%s*(.-)%s*$")
-    if trimmed == "" then goto next_line end
+    if trimmed ~= "" then
+      -- Calculate leading depth change (closing parens at start)
+      local leading_close = trimmed:match("^%)*")
+      if leading_close and #leading_close > 0 then
+        depth = math.max(0, depth - #leading_close)
+      end
 
-    -- Calculate leading depth change (closing parens at start)
-    local leading_close = trimmed:match("^%)*")
-    if leading_close and #leading_close > 0 then
-      depth = math.max(0, depth - #leading_close)
+      local indent = string.rep("  ", depth)
+      -- Sub-clauses get extra indent
+      local first = trimmed:match("^(%S+)")
+      if SUB_CLAUSE[first] then
+        indent = indent .. "  "
+      end
+
+      table.insert(result, indent .. trimmed)
+
+      depth = math.max(0, depth + paren_depth_change(trimmed))
     end
-
-    local indent = string.rep("  ", depth)
-    -- Sub-clauses get extra indent
-    local first = trimmed:match("^(%S+)")
-    if SUB_CLAUSE[first] then
-      indent = indent .. "  "
-    end
-
-    table.insert(result, indent .. trimmed)
-
-    depth = math.max(0, depth + paren_depth_change(trimmed))
-
-    ::next_line::
   end
 
   sql = table.concat(result, "\n")

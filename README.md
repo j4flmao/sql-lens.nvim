@@ -55,6 +55,46 @@ Real-time SQL query plan analyzer — see EXPLAIN output inline + execute querie
 }
 ```
 
+### LazyVim
+
+Create `~/.config/nvim/lua/plugins/sql-lens.lua`:
+
+```lua
+return {
+  {
+    "j4flmao/sql-lens.nvim",
+    ft = { "sql", "plpgsql", "mysql" },
+    dependencies = {
+      "nvim-treesitter/nvim-treesitter",
+    },
+    keys = {
+      { "<leader>sq", "<cmd>SqlLensToggle<cr>", desc = "SqlLens Toggle" },
+      { "<leader>sc", "<cmd>SqlLensConnect<cr>", desc = "SqlLens Connect" },
+      { "<leader>se", "<cmd>SqlLensExplain<cr>", desc = "SqlLens Explain" },
+      { "<leader>sd", "<cmd>SqlLensFloatDetail<cr>", desc = "SqlLens Detail" },
+      { "<leader>sr", "<cmd>SqlLensRun<cr>", desc = "SqlLens Run query" },
+      { "<leader>sR", "<cmd>SqlLensRunAll<cr>", desc = "SqlLens Run all" },
+    },
+    opts = {
+      lint = { enable_offline = true },
+      secrets = { use_env = true, use_dotenv = true },
+      connections = {},
+    },
+  },
+  {
+    "nvim-treesitter/nvim-treesitter",
+    opts = function(_, opts)
+      opts.ensure_installed = opts.ensure_installed or {}
+      vim.list_extend(opts.ensure_installed, { "sql" })
+    end,
+  },
+  { "stevearc/dressing.nvim", enabled = true },
+  { "folke/which-key.nvim", enabled = true },
+  { "rcarriga/nvim-notify", enabled = true },
+  { "hrsh7th/nvim-cmp", enabled = true },
+}
+```
+
 ## 🔌 Connection Setup
 
 ### SQL Server (LocalDB — Windows Auth)

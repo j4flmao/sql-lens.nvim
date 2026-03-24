@@ -134,6 +134,45 @@ function MySQL:list_foreign_keys(cb)
   end)
 end
 
+---Return uniqueness info for current database
+function MySQL:list_unique_info(cb)
+  local args = self:_args()
+  local sql = [[
+    SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX
+    FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND NON_UNIQUE = 0
+    ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX
+  ]]
+  vim.list_extend(args, { "--silent", "--raw", "-e", sql })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local groups = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local parts = vim.split(line, "\t")
+      local tbl, idx, col = parts[1], parts[2], parts[3]
+      if tbl and idx and col and tbl ~= "" and idx ~= "" and col ~= "" then
+        groups[tbl] = groups[tbl] or {}
+        groups[tbl][idx] = groups[tbl][idx] or {}
+        table.insert(groups[tbl][idx], col)
+      end
+    end
+    local info = { unique_single = {}, unique_composites = {} }
+    for tbl, idx_map in pairs(groups) do
+      info.unique_single[tbl] = {}
+      info.unique_composites[tbl] = {}
+      for _, cols in pairs(idx_map) do
+        if #cols == 1 then
+          info.unique_single[tbl][cols[1]] = true
+        elseif #cols > 1 then
+          table.sort(cols)
+          table.insert(info.unique_composites[tbl], cols)
+        end
+      end
+    end
+    cb(nil, info)
+  end)
+end
+
 function MySQL:list_databases(cb)
   local args = self:_args()
   vim.list_extend(args, { "--silent", "--raw", "-e", "SHOW DATABASES" })

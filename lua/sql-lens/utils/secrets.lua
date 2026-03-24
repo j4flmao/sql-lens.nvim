@@ -3,7 +3,11 @@ local M = {}
 function M.resolve_env_vars(str)
   if type(str) ~= "string" then return str end
   return str:gsub("%${([%w_]+)}", function(var)
-    return os.getenv(var) or "${" .. var .. "}"
+    local v = vim.env[var]
+    if v == nil or v == "" then
+      v = os.getenv(var)
+    end
+    return v or "${" .. var .. "}"
   end)
 end
 
@@ -36,8 +40,11 @@ function M.find_dotenv()
   return nil
 end
 
-function M.resolve_connection(conn)
+function M.resolve_connection(conn, opts)
   local resolved = vim.deepcopy(conn)
+  if opts and opts.use_env == false then
+    return resolved
+  end
   for k, v in pairs(resolved) do
     if type(v) == "string" then
       resolved[k] = M.resolve_env_vars(v)

@@ -23,17 +23,20 @@ end
 
 function M.save(cfg)
   local bookmarks = M._read()
+  local safe = vim.deepcopy(cfg)
+  safe.password = nil
+  safe.connection_string = nil
   -- Update existing or add new
   local found = false
   for i, bm in ipairs(bookmarks) do
     if bm.name == cfg.name then
-      bookmarks[i] = cfg
+      bookmarks[i] = safe
       found = true
       break
     end
   end
   if not found then
-    table.insert(bookmarks, cfg)
+    table.insert(bookmarks, safe)
   end
   M._write(bookmarks)
   vim.notify("SqlLens: Bookmark saved '" .. cfg.name .. "'", vim.log.levels.INFO)

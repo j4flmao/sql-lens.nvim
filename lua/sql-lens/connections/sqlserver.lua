@@ -196,16 +196,16 @@ function MSSQL:list_table_sizes(cb)
     local sizes = {}
     for line in stdout:gmatch("[^\r\n]+") do
       local trimmed = line:match("^%s*(.-)%s*$")
-      if is_noise(trimmed) or trimmed == "" then goto next end
-      local parts = vim.split(trimmed, "\t")
-      if #parts >= 3 then
-        table.insert(sizes, {
-          name = parts[1]:match("^%s*(.-)%s*$"),
-          row_count = tonumber(parts[2]) or 0,
-          bytes = tonumber(parts[3]) or 0,
-        })
+      if not (is_noise(trimmed) or trimmed == "") then
+        local parts = vim.split(trimmed, "\t")
+        if #parts >= 3 then
+          table.insert(sizes, {
+            name = parts[1]:match("^%s*(.-)%s*$"),
+            row_count = tonumber(parts[2]) or 0,
+            bytes = tonumber(parts[3]) or 0,
+          })
+        end
       end
-      ::next::
     end
     cb(nil, sizes)
   end)
@@ -230,6 +230,49 @@ function MSSQL:list_foreign_keys(cb)
       end
     end
     cb(nil, fks)
+  end)
+end
+
+---Return uniqueness info (unique indexes and primary keys)
+function MSSQL:list_unique_info(cb)
+  local args = self:_args()
+  local sql = [[
+    SET NOCOUNT ON;
+    SELECT t.name, i.name, c.name, ic.key_ordinal
+    FROM sys.indexes i
+    JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+    JOIN sys.tables t ON t.object_id = i.object_id
+    JOIN sys.columns c ON c.object_id = i.object_id AND c.column_id = ic.column_id
+    WHERE i.is_unique = 1 OR i.is_primary_key = 1
+    ORDER BY t.name, i.name, ic.key_ordinal
+  ]]
+  vim.list_extend(args, { "-h", "-1", "-W", "-s", "\t", "-Q", sql })
+  async.job(args, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local groups = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local parts = vim.split(line, "\t")
+      local tbl, idx, col = parts[1], parts[2], parts[3]
+      if tbl and idx and col and tbl ~= "" and idx ~= "" and col ~= "" then
+        groups[tbl] = groups[tbl] or {}
+        groups[tbl][idx] = groups[tbl][idx] or {}
+        table.insert(groups[tbl][idx], col)
+      end
+    end
+    local info = { unique_single = {}, unique_composites = {} }
+    for tbl, idx_map in pairs(groups) do
+      info.unique_single[tbl] = {}
+      info.unique_composites[tbl] = {}
+      for _, cols in pairs(idx_map) do
+        if #cols == 1 then
+          info.unique_single[tbl][cols[1]] = true
+        elseif #cols > 1 then
+          table.sort(cols)
+          table.insert(info.unique_composites[tbl], cols)
+        end
+      end
+    end
+    cb(nil, info)
   end)
 end
 

@@ -14,7 +14,18 @@ M._connections = {}
 M._active = {}      -- bufnr → connection instance
 M._disconnected = {} -- bufnr → true if explicitly disconnected
 
-function M.setup(conn_configs)
+local function maybe_prompt_password(conn)
+  local c = conn and conn.config or nil
+  if not c then return end
+  if c.user and c.user ~= "" and (not c.password or c.password == "") then
+    local ok, pw = pcall(vim.fn.inputsecret, "Password for " .. (c.name or "connection") .. ": ")
+    if ok and pw and pw ~= "" then
+      c.password = pw
+    end
+  end
+end
+
+function M.setup(conn_configs, secrets_cfg)
   M._connections = {}
 
   -- Merge config connections + saved bookmarks
@@ -35,7 +46,7 @@ function M.setup(conn_configs)
   end
 
   for _, cfg in ipairs(all_configs) do
-    local resolved = secrets.resolve_connection(cfg)
+    local resolved = secrets.resolve_connection(cfg, secrets_cfg)
     local adapter = adapters[resolved.type]
     if adapter then
       table.insert(M._connections, adapter.new(resolved))
@@ -66,6 +77,7 @@ end
 function M.set_active_by_name(bufnr, name)
   for _, conn in ipairs(M._connections) do
     if conn.config.name == name then
+      maybe_prompt_password(conn)
       M._active[bufnr] = conn
       vim.notify("SqlLens: Using connection '" .. name .. "'", vim.log.levels.INFO)
       return
@@ -88,6 +100,7 @@ function M.pick_and_connect()
     end,
   }, function(choice)
     if choice then
+      maybe_prompt_password(choice)
       local bufnr = vim.api.nvim_get_current_buf()
       M._active[bufnr] = choice
       M._disconnected[bufnr] = nil

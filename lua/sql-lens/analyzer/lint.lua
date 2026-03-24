@@ -355,29 +355,23 @@ function M.lint(sql, start_line)
 
         -- Skip if: known keyword, known function, or identifier (table/column/alias)
         if not ALL_KNOWN[lower] and not identifiers[lower] then
-          -- Skip rất nhiều trường hợp có khả năng là tên cột/bảng:
-          -- 1) Rất ngắn (u, o, p, id, yr, mo, ...)
-          if #token < 3 then
-            goto continue_token
-          end
-
-          -- Fuzzy-match cho các token còn lại (khả năng cao là keyword/hàm viết sai)
-          local suggestion, dist = find_best_match(lower)
-          if suggestion and dist then
-            local col = line:lower():find(lower, 1, true)
-            table.insert(errors, {
-              line = start_line + (i - 1),
-              col = col and (col - 1) or nil,
-              message = string.format(
-                "'%s' → Did you mean '%s'?",
-                token, suggestion:upper()
-              ),
-              level = "error",
-              token = token,
-            })
+          if #token >= 3 then
+            local suggestion, dist = find_best_match(lower)
+            if suggestion and dist then
+              local col = line:lower():find(lower, 1, true)
+              table.insert(errors, {
+                line = start_line + (i - 1),
+                col = col and (col - 1) or nil,
+                message = string.format(
+                  "'%s' → Did you mean '%s'?",
+                  token, suggestion:upper()
+                ),
+                level = "error",
+                token = token,
+              })
+            end
           end
         end
-        ::continue_token::
       end
     end
   end

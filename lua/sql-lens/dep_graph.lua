@@ -102,21 +102,19 @@ function M._build(data, conn)
     local dependent = sanitize(row[1] or "")
     local dependency = sanitize(row[2] or "")
     local dep_type = (row[3] or ""):lower()
-    if dependent == "" or dependency == "" then goto next end
-
-    if not nodes[dependent] then
-      local shape = dep_type == "view" and { "[[", "]]" }
-                 or dep_type == "proc" and { "((", "))" }
-                 or dep_type == "func" and { ">", "]" }
-                 or { "[", "]" }
-      nodes[dependent] = { name = dependent, shape = shape, type = dep_type }
+    if dependent ~= "" and dependency ~= "" then
+      if not nodes[dependent] then
+        local shape = dep_type == "view" and { "[[", "]]" }
+                   or dep_type == "proc" and { "((", "))" }
+                   or dep_type == "func" and { ">", "]" }
+                   or { "[", "]" }
+        nodes[dependent] = { name = dependent, shape = shape, type = dep_type }
+      end
+      if not nodes[dependency] then
+        nodes[dependency] = { name = dependency, shape = { "[(", ")]" }, type = "table" }
+      end
+      table.insert(edges, { from = dependent, to = dependency })
     end
-    if not nodes[dependency] then
-      nodes[dependency] = { name = dependency, shape = { "[(", ")]" }, type = "table" }
-    end
-
-    table.insert(edges, { from = dependent, to = dependency })
-    ::next::
   end
 
   -- Build mermaid

@@ -10,6 +10,7 @@ local vt          = require("sql-lens.ui.virtual_text")
 local float       = require("sql-lens.ui.float")
 local highlights  = require("sql-lens.ui.highlights")
 local debounce    = require("sql-lens.utils.debounce")
+local secrets     = require("sql-lens.utils.secrets")
 
 M._config  = {}
 M._enabled = true
@@ -18,9 +19,14 @@ function M.setup(opts)
   M._config = vim.tbl_deep_extend("force", config_mod.defaults, opts or {})
   config_mod.validate(M._config)
 
+  local secrets_cfg = M._config.secrets or {}
+  if secrets_cfg.use_dotenv then
+    secrets.load_dotenv()
+  end
+
   highlights.setup()
   hints_mod.setup(M._config.thresholds)
-  conn_mgr.setup(M._config.connections)
+  conn_mgr.setup(M._config.connections, secrets_cfg)
 
   local km = M._config.keymaps
   if km then

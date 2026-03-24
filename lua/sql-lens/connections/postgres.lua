@@ -162,6 +162,47 @@ function PG:list_foreign_keys(cb)
   end)
 end
 
+---Return unique info: single-column uniques and composite unique sets (including PK)
+---@param cb fun(err?: string, info?: table)
+function PG:list_unique_info(cb)
+  local sql = [[
+    SELECT tc.table_name, kc.constraint_name, kc.column_name, kc.ordinal_position
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kc
+      ON kc.constraint_name = tc.constraint_name AND kc.table_schema = tc.table_schema AND kc.table_name = tc.table_name
+    WHERE tc.constraint_type IN ('PRIMARY KEY','UNIQUE') AND tc.table_schema = 'public'
+    ORDER BY tc.table_name, kc.constraint_name, kc.ordinal_position
+  ]]
+  local cmd = { "psql", self:_connstr(), "--no-psqlrc", "-t", "-A", "-F", "\t", "-c", sql }
+  async.job(cmd, function(code, stdout, stderr)
+    if code ~= 0 then return cb(stderr or "error", {}) end
+    local groups = {}
+    for line in stdout:gmatch("[^\r\n]+") do
+      local parts = vim.split(line, "\t")
+      local tbl, cons, col = parts[1], parts[2], parts[3]
+      if tbl and cons and col and tbl ~= "" and cons ~= "" and col ~= "" then
+        groups[tbl] = groups[tbl] or {}
+        groups[tbl][cons] = groups[tbl][cons] or {}
+        table.insert(groups[tbl][cons], col)
+      end
+    end
+    local info = { unique_single = {}, unique_composites = {} }
+    for tbl, cons_map in pairs(groups) do
+      info.unique_single[tbl] = {}
+      info.unique_composites[tbl] = {}
+      for _, cols in pairs(cons_map) do
+        if #cols == 1 then
+          info.unique_single[tbl][cols[1]] = true
+        elseif #cols > 1 then
+          table.sort(cols)
+          table.insert(info.unique_composites[tbl], cols)
+        end
+      end
+    end
+    cb(nil, info)
+  end)
+end
+
 function PG:list_databases(cb)
   local cmd = {
     "psql", self:_connstr(),
